@@ -42,7 +42,7 @@ export function TopBar({
   const [isFolderMenuOpen, setIsFolderMenuOpen] = useState(false);
 
   return (
-    <header className="toolbar">
+    <header className="toolbar" data-tauri-drag-region>
       <div className="toolbar-left">
         <button className="icon-button" type="button" onClick={onAddFolder} title="Add folder">
           <FolderPlus size={14} />

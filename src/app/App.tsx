@@ -7,6 +7,7 @@ import { FocusView } from "../components/FocusView";
 import { MediaGrid } from "../components/MediaGrid";
 import { TopBar } from "../components/TopBar";
 import { mediaSrc } from "../lib/media";
+import { playSound } from "../lib/sound";
 import type { MediaItem } from "../lib/types";
 import { initialRoute } from "./routes";
 import { useKeyboard } from "../state/useKeyboard";
@@ -61,6 +62,7 @@ export function App() {
   }, [isSearchOpen]);
 
   const closeLayer = () => {
+    if (previewMode !== "none") playSound("focus_close");
     if (isSearchOpen) store.setQuery("");
     setIsSearchOpen(false);
     setIsCommandOpen(false);
@@ -76,11 +78,17 @@ export function App() {
   };
 
   const copyPath = () => {
-    if (store.selectedItem) void navigator.clipboard.writeText(store.selectedItem.path);
+    if (store.selectedItem) {
+      void navigator.clipboard.writeText(store.selectedItem.path);
+      playSound("copy");
+    }
   };
 
   const copyName = () => {
-    if (store.selectedItem) void navigator.clipboard.writeText(store.selectedItem.name);
+    if (store.selectedItem) {
+      void navigator.clipboard.writeText(store.selectedItem.name);
+      playSound("copy");
+    }
   };
 
   const copyImage = async () => {
@@ -93,14 +101,18 @@ export function App() {
       const response = await fetch(mediaSrc(store.selectedItem));
       const blob = await response.blob();
       await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      playSound("copy");
     } catch {
       copyPath();
     }
   };
 
   const commands = [
-    { id: "add-folder", label: "Add folder", shortcut: "Cmd O", run: () => void store.addFolder() },
-    { id: "search", label: "Search", shortcut: "Cmd F", run: () => setIsSearchOpen(true) },
+    { id: "add-folder", label: "Add folder", shortcut: "Cmd O", run: () => void store.addFolder().then(() => playSound("folder_added")) },
+    { id: "search", label: "Search", shortcut: "Cmd F", run: () => {
+      setIsSearchOpen(true);
+      playSound("search_open");
+    } },
     { id: "all-folders", label: "Show all folders", shortcut: "All", run: () => store.setActiveFolderId("all") },
     { id: "current-folder", label: "Show current folder", shortcut: "Folder", run: () => store.selectedItem && store.setActiveFolderId(store.selectedItem.folderId) },
     { id: "rescan", label: "Rescan", shortcut: "Manual", run: () => void store.rescan() },
@@ -115,14 +127,39 @@ export function App() {
   ];
 
   useKeyboard({
-    addFolder: () => void store.addFolder(),
-    openCommandMenu: () => setIsCommandOpen(true),
-    openSearch: () => setIsSearchOpen(true),
+    addFolder: () => void store.addFolder().then(() => playSound("folder_added")),
+    openCommandMenu: () => {
+      setIsCommandOpen(true);
+      playSound("command_open");
+    },
+    openSearch: () => {
+      setIsSearchOpen(true);
+      playSound("search_open");
+    },
     closeLayer,
-    openSelected: () => store.selectedItem && setPreviewMode("focus"),
-    quickLook: () => store.selectedItem && setPreviewMode("quick"),
+    openSelected: () => {
+      if (previewMode === "focus") {
+        setPreviewMode("none");
+        playSound("focus_close");
+      } else if (store.selectedItem) {
+        setPreviewMode("focus");
+        playSound("focus_open");
+      }
+    },
+    quickLook: () => {
+      if (previewMode !== "none") {
+        setPreviewMode("none");
+        playSound("focus_close");
+      } else if (store.selectedItem) {
+        setPreviewMode("quick");
+        playSound("focus_open");
+      }
+    },
     toggleSimilar: () => setShowSimilar((value) => !value),
-    moveSelection: store.moveSelection,
+    moveSelection: (delta) => {
+      store.moveSelection(delta);
+      playSound("select");
+    },
     revealInFinder: revealSelected,
     copyImage,
     copyPath,
@@ -168,6 +205,7 @@ export function App() {
           onOpen={(index) => {
             store.setSelectedIndex(index);
             setPreviewMode("focus");
+            playSound("focus_open");
           }}
           onMeasure={store.updateItemSize}
           onIndexColors={(mediaId, dominantColors, colorNames) =>
@@ -193,6 +231,7 @@ export function App() {
           onClose={() => {
             setShowSimilar(false);
             setPreviewMode("none");
+            playSound("focus_close");
           }}
           onPrevious={() => store.moveSelection(-1)}
           onNext={() => store.moveSelection(1)}

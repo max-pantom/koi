@@ -16,8 +16,8 @@ export function CommandMenu({
   onClose: () => void;
 }) {
   return (
-    <div className="modal-layer command-layer" role="dialog" aria-modal="true">
-      <div className="command-menu">
+    <div className="modal-layer command-layer" role="dialog" aria-modal="true" onMouseDown={onClose}>
+      <div className="command-menu" onMouseDown={(event) => event.stopPropagation()}>
         <div className="command-head">
           <Search size={15} />
           <span>Command menu</span>

@@ -38,8 +38,8 @@ export function FocusView({
       >
         <ArrowLeft size={18} />
       </button>
-      <div className="preview-media" onMouseDown={(event) => event.stopPropagation()}>
-        <img src={mediaSrc(item)} alt="" draggable={false} />
+      <div className="preview-media">
+        <img src={mediaSrc(item)} alt="" draggable={false} onMouseDown={(event) => event.stopPropagation()} />
       </div>
       <button
         className="preview-nav right"

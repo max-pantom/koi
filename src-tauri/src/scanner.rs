@@ -101,6 +101,7 @@ fn scan_dir(root: &Path, dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>
             .unwrap_or_default()
             .to_lowercase();
         let absolute = path.to_string_lossy().to_string();
+        let (dominant_colors, color_names) = color_index(&path);
 
         items.push(MediaItem {
             id: stable_id(&absolute),
@@ -114,8 +115,8 @@ fn scan_dir(root: &Path, dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>
             created_at: metadata.created().ok().and_then(to_secs),
             modified_at: metadata.modified().ok().and_then(to_secs),
             tags: Vec::new(),
-            dominant_colors: Vec::new(),
-            color_names: Vec::new(),
+            dominant_colors,
+            color_names,
         });
     }
 
@@ -144,4 +145,58 @@ fn now() -> u64 {
 
 fn to_secs(time: std::time::SystemTime) -> Option<u64> {
     time.duration_since(UNIX_EPOCH).ok().map(|duration| duration.as_secs())
+}
+
+fn color_index(path: &Path) -> (Vec<String>, Vec<String>) {
+    let Ok(reader) = image::ImageReader::open(path) else {
+        return (Vec::new(), Vec::new());
+    };
+    let Ok(image) = reader.decode() else {
+        return (Vec::new(), Vec::new());
+    };
+    let image = image.thumbnail(48, 48).to_rgb8();
+    let mut buckets: std::collections::HashMap<(u8, u8, u8), usize> = std::collections::HashMap::new();
+
+    for pixel in image.pixels().step_by(4) {
+        let [r, g, b] = pixel.0;
+        let key = ((r / 32) * 32, (g / 32) * 32, (b / 32) * 32);
+        *buckets.entry(key).or_insert(0) += 1;
+    }
+
+    let mut buckets = buckets.into_iter().collect::<Vec<_>>();
+    buckets.sort_by(|a, b| b.1.cmp(&a.1));
+    let dominant = buckets.into_iter().take(5).map(|(rgb, _)| rgb).collect::<Vec<_>>();
+    let dominant_colors = dominant
+        .iter()
+        .map(|(r, g, b)| format!("#{r:02x}{g:02x}{b:02x}"))
+        .collect::<Vec<_>>();
+    let mut color_names = dominant.iter().map(|rgb| nearest_color_name(*rgb)).collect::<Vec<_>>();
+    color_names.dedup();
+
+    (dominant_colors, color_names)
+}
+
+fn nearest_color_name(rgb: (u8, u8, u8)) -> String {
+    const COLORS: &[(&str, (i32, i32, i32))] = &[
+        ("black", (18, 18, 18)),
+        ("white", (242, 242, 238)),
+        ("gray", (128, 128, 128)),
+        ("red", (216, 48, 42)),
+        ("orange", (235, 127, 38)),
+        ("yellow", (232, 205, 48)),
+        ("green", (48, 155, 74)),
+        ("blue", (50, 100, 210)),
+        ("purple", (125, 75, 180)),
+        ("pink", (226, 94, 154)),
+        ("brown", (126, 82, 48)),
+    ];
+
+    let rgb = (rgb.0 as i32, rgb.1 as i32, rgb.2 as i32);
+    COLORS
+        .iter()
+        .min_by_key(|(_, color)| {
+            (rgb.0 - color.0).pow(2) + (rgb.1 - color.1).pow(2) + (rgb.2 - color.2).pow(2)
+        })
+        .map(|(name, _)| name.to_string())
+        .unwrap_or_else(|| "gray".to_string())
 }
