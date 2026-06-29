@@ -1,0 +1,17 @@
+export const shortcuts = [
+  { keys: "Cmd O", label: "Add folder" },
+  { keys: "Cmd K", label: "Command menu" },
+  { keys: "Cmd F", label: "Search" },
+  { keys: "Enter", label: "Open selected image" },
+  { keys: "Space", label: "Quick preview" },
+  { keys: "Arrow keys", label: "Move selection" },
+  { keys: "J / K", label: "Next / previous item" },
+  { keys: "G G", label: "Jump to top" },
+  { keys: "Shift G", label: "Jump to bottom" },
+  { keys: "T", label: "Edit tags" },
+  { keys: "Cmd 1", label: "Grid view" },
+  { keys: "Cmd 2", label: "Focus view" },
+  { keys: "Cmd R", label: "Rescan folder" },
+  { keys: "Delete", label: "Remove from Koi" },
+  { keys: "Cmd ,", label: "Preferences" },
+];
