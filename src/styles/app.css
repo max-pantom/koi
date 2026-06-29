@@ -44,7 +44,7 @@ button {
   align-items: center;
   justify-content: space-between;
   height: 50px;
-  padding: 14px 14px 10px 82px;
+  padding: 14px 14px 10px 16px;
   background: #fff;
 }
 
@@ -52,8 +52,41 @@ button {
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
+}
+
+.toolbar-left {
+  gap: 13px;
+}
+
+.traffic-lights {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 0;
+}
+
+.traffic-lights span {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.traffic-red {
+  background: #fb403b;
+}
+
+.traffic-yellow {
+  background: #fdcf21;
+}
+
+.traffic-green {
+  background: #3cc94d;
+}
+
+.toolbar-left > .icon-button {
+  margin-left: -9px;
 }
 
 .folder-switch {
@@ -66,27 +99,40 @@ button {
   top: 30px;
   z-index: 20;
   display: grid;
-  min-width: 160px;
-  padding: 5px;
-  border: 1px solid #ececec;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(18px);
+  min-width: 150px;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: rgba(78, 78, 78, 0.5);
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(5px);
 }
 
 .folder-menu button {
-  height: 26px;
-  padding: 0 8px;
-  border-radius: 5px;
-  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+  padding: 0;
+  border-radius: 0;
+  color: #f2f2f2;
   background: transparent;
   font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
   text-align: left;
 }
 
 .folder-menu button:hover {
-  background: #eeeeee;
+  color: #ffffff;
+  background: transparent;
+}
+
+.folder-menu svg {
+  flex: 0 0 auto;
+  color: #e7e7e7;
+  fill: #e7e7e7;
+  stroke-width: 0;
 }
 
 .icon-button,
@@ -284,10 +330,30 @@ button {
   align-items: center;
   justify-items: center;
   padding: 56px 18px 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.preview-blur {
+  position: absolute;
+  inset: -12%;
+  z-index: -1;
+  width: 124%;
+  height: 124%;
+  object-fit: cover;
+  filter: blur(52px) saturate(1.15);
+  opacity: 0.34;
+  transform: scale(1.05);
+}
+
+.preview-quick .preview-media {
+  max-width: min(860px, 72vw);
+  max-height: min(640px, 72vh);
 }
 
 .preview-media {
   grid-column: 2;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -337,9 +403,119 @@ button {
   white-space: nowrap;
 }
 
+.similar-toggle {
+  position: absolute;
+  right: 56px;
+  top: 16px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: #555;
+  background: #e9e9e9;
+  font-size: 12px;
+}
+
+.similar-strip {
+  position: absolute;
+  left: 50%;
+  bottom: 54px;
+  display: flex;
+  max-width: min(760px, calc(100vw - 80px));
+  gap: 10px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.12);
+  transform: translateX(-50%);
+}
+
+.similar-strip button {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.similar-strip img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .modal-layer {
   display: grid;
   place-items: center;
+}
+
+.command-menu {
+  display: grid;
+  gap: 12px;
+  width: min(430px, calc(100vw - 36px));
+  padding: 14px;
+  border: 1px solid #ececec;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(22px);
+}
+
+.command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #555;
+  font-size: 12px;
+}
+
+.command-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: #777;
+  background: #eaeaea;
+}
+
+.command-list,
+.shortcut-list {
+  display: grid;
+  gap: 4px;
+}
+
+.command-list button,
+.shortcut-list div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  width: 100%;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: #555;
+  background: #eeeeee;
+  font-size: 12px;
+}
+
+.shortcut-list div {
+  height: 24px;
+  color: #888;
+  background: transparent;
+  font-size: 11px;
+}
+
+kbd {
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: #777;
+  background: #f7f7f7;
+  font: inherit;
+  font-size: 10px;
 }
 
 @media (max-width: 980px) {

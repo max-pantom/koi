@@ -13,11 +13,13 @@ type LibraryStore = {
   searchMode: SearchMode;
   activeFolderId: string;
   gridColumns: number;
+  inboxFolderId: string;
   viewMode: ViewMode;
   isLoading: boolean;
   error: string;
   loadLibrary: () => Promise<void>;
   addFolder: () => Promise<void>;
+  addFolderPath: (path: string) => Promise<void>;
   rescan: () => Promise<void>;
   removeSelected: () => void;
   updateItemSize: (mediaId: string, width: number, height: number) => void;
@@ -26,6 +28,7 @@ type LibraryStore = {
   setSearchMode: (mode: SearchMode) => void;
   setActiveFolderId: (folderId: string) => void;
   setGridColumns: (columns: number) => void;
+  setInboxFolderId: (folderId: string) => void;
   setViewMode: (viewMode: ViewMode) => void;
   setSelectedIndex: (index: number) => void;
   moveSelection: (delta: number) => void;
@@ -37,11 +40,12 @@ type LibraryStore = {
 export function useLibraryStore(): LibraryStore {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [items, setItems] = useState<MediaItem[]>([]);
-  const [selectedIndex, setSelectedIndexState] = useState(0);
+  const [selectedIndex, setSelectedIndexState] = useState(() => readNumber("koi.selectedIndex", 0));
   const [query, setQuery] = useState("");
   const [searchMode, setSearchMode] = useState<SearchMode>("normal");
-  const [activeFolderId, setActiveFolderId] = useState("all");
-  const [gridColumns, setGridColumnsState] = useState(6);
+  const [activeFolderId, setActiveFolderId] = useState(() => localStorage.getItem("koi.activeFolderId") ?? "all");
+  const [gridColumns, setGridColumnsState] = useState(() => readNumber("koi.gridColumns", 6));
+  const [inboxFolderId, setInboxFolderIdState] = useState(() => localStorage.getItem("koi.inboxFolderId") ?? "");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -50,20 +54,16 @@ export function useLibraryStore(): LibraryStore {
     if (activeFolderId === "all") return items;
     return items.filter((item) => item.folderId === activeFolderId);
   }, [activeFolderId, items]);
-  const searchableItems = useMemo(() => {
-    const folderNames = new Map(folders.map((folder) => [folder.id, folder.name]));
-    return scopedItems.map((item) => ({
-      ...item,
-      folderId: folderNames.get(item.folderId) ?? item.folderId,
-    }));
-  }, [folders, scopedItems]);
-  const filteredItems = useMemo(() => searchMedia(searchableItems, query, searchMode), [query, searchableItems, searchMode]);
+  const folderNames = useMemo(() => new Map(folders.map((folder) => [folder.id, folder.name])), [folders]);
+  const filteredItems = useMemo(
+    () => searchMedia(scopedItems, query, searchMode, folderNames),
+    [folderNames, query, scopedItems, searchMode],
+  );
   const selectedItem = filteredItems[Math.min(selectedIndex, Math.max(filteredItems.length - 1, 0))];
 
   const setLibrary = useCallback((library: LibraryState) => {
     setFolders(library.folders);
     setItems(library.items);
-    setSelectedIndexState(0);
   }, []);
 
   const loadLibrary = useCallback(async () => {
@@ -83,6 +83,19 @@ export function useLibraryStore(): LibraryStore {
     setError("");
     try {
       await invoke<Folder>("add_folder");
+      setLibrary(await invoke<LibraryState>("get_library"));
+    } catch (err) {
+      setError(readError(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setLibrary]);
+
+  const addFolderPath = useCallback(async (path: string) => {
+    setIsLoading(true);
+    setError("");
+    try {
+      await invoke<Folder>("add_folder_path", { folderPath: path });
       setLibrary(await invoke<LibraryState>("get_library"));
     } catch (err) {
       setError(readError(err));
@@ -118,11 +131,17 @@ export function useLibraryStore(): LibraryStore {
   }, [filteredItems.length, selectedItem]);
 
   const setSelectedIndex = useCallback((index: number) => {
-    setSelectedIndexState(clamp(index, 0, Math.max(filteredItems.length - 1, 0)));
+    const next = clamp(index, 0, Math.max(filteredItems.length - 1, 0));
+    localStorage.setItem("koi.selectedIndex", String(next));
+    setSelectedIndexState(next);
   }, [filteredItems.length]);
 
   const moveSelection = useCallback((delta: number) => {
-    setSelectedIndexState((index) => clamp(index + delta, 0, Math.max(filteredItems.length - 1, 0)));
+    setSelectedIndexState((index) => {
+      const next = clamp(index + delta, 0, Math.max(filteredItems.length - 1, 0));
+      localStorage.setItem("koi.selectedIndex", String(next));
+      return next;
+    });
   }, [filteredItems.length]);
 
   const updateItemSize = useCallback((mediaId: string, width: number, height: number) => {
@@ -155,11 +174,13 @@ export function useLibraryStore(): LibraryStore {
     searchMode,
     activeFolderId,
     gridColumns,
+    inboxFolderId,
     viewMode,
     isLoading,
     error,
     loadLibrary,
     addFolder,
+    addFolderPath,
     rescan,
     removeSelected,
     updateItemSize,
@@ -167,10 +188,19 @@ export function useLibraryStore(): LibraryStore {
     setQuery,
     setSearchMode,
     setActiveFolderId: (folderId) => {
+      localStorage.setItem("koi.activeFolderId", folderId);
       setActiveFolderId(folderId);
       setSelectedIndexState(0);
     },
-    setGridColumns: (columns) => setGridColumnsState(clamp(columns, 4, 16)),
+    setGridColumns: (columns) => {
+      const next = clamp(columns, 4, 16);
+      localStorage.setItem("koi.gridColumns", String(next));
+      setGridColumnsState(next);
+    },
+    setInboxFolderId: (folderId) => {
+      localStorage.setItem("koi.inboxFolderId", folderId);
+      setInboxFolderIdState(folderId);
+    },
     setViewMode,
     setSelectedIndex,
     moveSelection,
@@ -186,4 +216,9 @@ function readError(err: unknown) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function readNumber(key: string, fallback: number) {
+  const value = Number(localStorage.getItem(key));
+  return Number.isFinite(value) ? value : fallback;
 }

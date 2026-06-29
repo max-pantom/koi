@@ -9,6 +9,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::add_folder,
+            commands::add_folder_path,
             commands::scan_folder,
             commands::get_media_file,
             commands::save_tags,

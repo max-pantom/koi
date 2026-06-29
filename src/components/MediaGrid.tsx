@@ -23,6 +23,7 @@ export function MediaGrid({
   onMeasure,
   onIndexColors,
   gridColumns,
+  onScrollChange,
 }: {
   items: MediaItem[];
   selectedItem?: MediaItem;
@@ -34,6 +35,7 @@ export function MediaGrid({
   onMeasure: (mediaId: string, width: number, height: number) => void;
   onIndexColors: (mediaId: string, dominantColors: string[], colorNames: string[]) => void;
   gridColumns: number;
+  onScrollChange: (scrollTop: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -46,11 +48,13 @@ export function MediaGrid({
     const update = () => {
       setContainerWidth(element.clientWidth);
       setViewport({ top: element.scrollTop, height: element.clientHeight });
+      onScrollChange(element.scrollTop);
     };
     const resizeObserver = new ResizeObserver(update);
     resizeObserver.observe(element);
     element.addEventListener("scroll", update, { passive: true });
     update();
+    element.scrollTop = readNumber("koi.scrollTop", 0);
 
     return () => {
       resizeObserver.disconnect();
@@ -148,4 +152,9 @@ function shortestColumn(columns: number[]) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function readNumber(key: string, fallback: number) {
+  const value = Number(localStorage.getItem(key));
+  return Number.isFinite(value) ? value : fallback;
 }

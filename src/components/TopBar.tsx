@@ -1,4 +1,4 @@
-import { FolderPlus, Search } from "lucide-react";
+import { Folder as FolderIcon, FolderPlus, LayoutPanelTop, Search } from "lucide-react";
 import { useState, type RefObject } from "react";
 import { formatCount } from "../lib/media";
 import type { Folder, SearchMode } from "../lib/types";
@@ -44,6 +44,11 @@ export function TopBar({
   return (
     <header className="toolbar">
       <div className="toolbar-left">
+        <div className="traffic-lights" aria-hidden="true">
+          <span className="traffic-red" />
+          <span className="traffic-yellow" />
+          <span className="traffic-green" />
+        </div>
         <button className="icon-button" type="button" onClick={onAddFolder} title="Add folder">
           <FolderPlus size={14} />
         </button>
@@ -62,6 +67,7 @@ export function TopBar({
                   setIsFolderMenuOpen(false);
                 }}
               >
+                <FolderIcon size={12} />
                 All folders
               </button>
               {folders.map((item) => (
@@ -73,10 +79,12 @@ export function TopBar({
                     setIsFolderMenuOpen(false);
                   }}
                 >
+                  <FolderIcon size={12} />
                   {item.name}
                 </button>
               ))}
               <button type="button" onClick={onAddFolder}>
+                <FolderPlus size={12} />
                 Add folder
               </button>
             </div>
@@ -126,6 +134,9 @@ export function TopBar({
         )}
         <button className="icon-button" type="button" onClick={onToggleSearch} title="Search">
           <Search size={14} />
+        </button>
+        <button className="icon-button wide" type="button" title="Layout">
+          <LayoutPanelTop size={14} />
         </button>
       </div>
     </header>

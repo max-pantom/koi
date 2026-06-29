@@ -31,7 +31,11 @@ export function MediaTile({
         alt=""
         loading="lazy"
         decoding="async"
-        draggable={false}
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.setData("text/plain", item.path);
+          event.dataTransfer.setData("text/uri-list", `file://${item.path}`);
+        }}
         onLoad={(event) => {
           const image = event.currentTarget;
           onMeasure(image.naturalWidth, image.naturalHeight);
