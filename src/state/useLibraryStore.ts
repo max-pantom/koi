@@ -24,6 +24,8 @@ type LibraryStore = {
   removeSelected: () => void;
   updateItemSize: (mediaId: string, width: number, height: number) => void;
   saveMediaIndex: (mediaId: string, dominantColors: string[], colorNames: string[]) => Promise<void>;
+  saveTags: (mediaId: string, tags: string[]) => Promise<void>;
+  reconnectFolder: (folderId: string) => Promise<void>;
   setQuery: (query: string) => void;
   setSearchMode: (mode: SearchMode) => void;
   setActiveFolderId: (folderId: string) => void;
@@ -164,6 +166,30 @@ export function useLibraryStore(): LibraryStore {
     }
   }, []);
 
+  const saveTags = useCallback(async (mediaId: string, tags: string[]) => {
+    setItems((current) =>
+      current.map((item) => (item.id === mediaId ? { ...item, tags } : item)),
+    );
+    try {
+      await invoke("save_tags", { mediaId, tags });
+    } catch (err) {
+      setError(readError(err));
+    }
+  }, []);
+
+  const reconnectFolder = useCallback(async (folderId: string) => {
+    setIsLoading(true);
+    setError("");
+    try {
+      await invoke("reconnect_folder", { folderId });
+      setLibrary(await invoke<LibraryState>("get_library"));
+    } catch (err) {
+      setError(readError(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setLibrary]);
+
   return {
     folders,
     items,
@@ -185,6 +211,8 @@ export function useLibraryStore(): LibraryStore {
     removeSelected,
     updateItemSize,
     saveMediaIndex,
+    saveTags,
+    reconnectFolder,
     setQuery,
     setSearchMode,
     setActiveFolderId: (folderId) => {

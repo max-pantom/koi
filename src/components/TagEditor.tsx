@@ -16,9 +16,10 @@ export function TagEditor({
   const [value, setValue] = useState(item.tags.join(", "));
 
   return (
-    <div className="modal-layer" role="dialog" aria-modal="true">
+    <div className="modal-layer" role="dialog" aria-modal="true" onPointerDown={onClose}>
       <form
         className="tagger"
+        onPointerDown={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault();
           onSave(normalizeTags(value));

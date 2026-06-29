@@ -35,12 +35,24 @@ button {
   cursor: default;
 }
 
+button:focus,
+button:focus-visible {
+  outline: 0;
+}
+
 .app {
   position: relative;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
   background: #fff;
+  color: #242424;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.app.is-dark {
+  background: #111;
+  color: #ededed;
 }
 
 .toolbar {
@@ -255,13 +267,14 @@ button {
   outline: 0;
   background: transparent;
   will-change: transform;
+  isolation: isolate;
 }
 
 .tile::before {
   content: "";
   position: absolute;
   inset: -8px;
-  z-index: -1;
+  z-index: 0;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0);
   transform: scale(0.94);
@@ -274,10 +287,18 @@ button {
 }
 
 .tile img {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: auto;
   object-fit: contain;
   background: transparent;
+  animation: image-fade 180ms ease both;
+}
+
+.tile.is-missing img {
+  opacity: 0.28;
+  filter: grayscale(1);
 }
 
 .tile.is-active::after {
@@ -317,6 +338,21 @@ button {
   background: #222;
   font-size: 12px;
   text-align: left;
+}
+
+.missing-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 40;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  color: #555;
+  background: rgba(238, 238, 238, 0.88);
+  font-size: 12px;
+  transform: translateX(-50%);
+  backdrop-filter: blur(18px);
 }
 
 .preview-layer,
@@ -371,7 +407,7 @@ button {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  animation: focus-pop 130ms ease both;
+  animation: focus-pop 180ms cubic-bezier(0.18, 0.92, 0.22, 1.08) both;
 }
 
 .preview-close,
@@ -469,6 +505,87 @@ button {
   backdrop-filter: blur(22px);
 }
 
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #555;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.panel-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: #777;
+  background: #eaeaea;
+}
+
+.tagger {
+  display: grid;
+  gap: 12px;
+  width: min(380px, calc(100vw - 36px));
+  padding: 14px;
+  border: 1px solid #ececec;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(22px);
+}
+
+.tagger > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tagger h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #555;
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tagger input {
+  height: 30px;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  outline: 0;
+  padding: 0 9px;
+  color: #333;
+  background: #eeeeee;
+  font-size: 12px;
+}
+
+.tagger button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  border-radius: 6px;
+  color: #555;
+  background: #eeeeee;
+  font-size: 12px;
+}
+
+.tagger > div button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
 .command-head {
   display: flex;
   align-items: center;
@@ -476,6 +593,179 @@ button {
   gap: 12px;
   color: #555;
   font-size: 12px;
+}
+
+.settings-window,
+.palette-popover {
+  display: grid;
+  gap: 12px;
+  width: min(360px, calc(100vw - 36px));
+  padding: 14px;
+  border: 1px solid #ececec;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(22px);
+}
+
+.settings-window > button,
+.palette-actions button {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: #555;
+  background: #eeeeee;
+  font-size: 12px;
+  text-align: left;
+}
+
+.palette-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.palette-swatches button {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  color: #555;
+  background: transparent;
+  font-size: 10px;
+}
+
+.palette-swatches span {
+  height: 46px;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.palette-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.context-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.context-menu {
+  position: fixed;
+  display: grid;
+  width: 190px;
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background: rgba(248, 248, 248, 0.88);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(22px);
+}
+
+.context-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 24px;
+  padding: 0 4px 0 7px;
+  color: #777;
+  font-size: 11px;
+}
+
+.context-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-title button,
+.context-menu > button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 6px;
+  color: #444;
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+}
+
+.context-menu > button:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.app.is-dark .icon-button,
+.app.is-dark .folder-pill,
+.app.is-dark .count-pill,
+.app.is-dark .search-box,
+.app.is-dark .density-control,
+.app.is-dark .search-mode,
+.app.is-dark .preview-close,
+.app.is-dark .preview-nav,
+.app.is-dark .similar-toggle,
+.app.is-dark .missing-toast,
+.app.is-dark .command-head button,
+.app.is-dark .panel-head button,
+.app.is-dark .tagger button {
+  color: #cfcfcf;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.app.is-dark .search-box input,
+.app.is-dark .tagger input {
+  color: #f0f0f0;
+}
+
+.app.is-dark .search-mode button.is-active {
+  color: #f0f0f0;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.app.is-dark .preview-layer,
+.app.is-dark .modal-layer {
+  background: rgba(12, 12, 12, 0.28);
+}
+
+.app.is-dark .command-menu,
+.app.is-dark .tagger,
+.app.is-dark .settings-window,
+.app.is-dark .palette-popover,
+.app.is-dark .similar-strip,
+.app.is-dark .context-menu {
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e8e8e8;
+  background: rgba(28, 28, 28, 0.88);
+}
+
+.app.is-dark .panel-head,
+.app.is-dark .command-head,
+.app.is-dark .tagger h2,
+.app.is-dark .palette-swatches button,
+.app.is-dark .context-title {
+  color: #cfcfcf;
+}
+
+.app.is-dark .command-list button,
+.app.is-dark .settings-window > button,
+.app.is-dark .palette-actions button,
+.app.is-dark .tagger input,
+.app.is-dark .context-menu > button {
+  color: #e6e6e6;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.app.is-dark .context-menu > button:hover {
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .command-head button {
@@ -543,10 +833,23 @@ kbd {
 @keyframes focus-pop {
   from {
     opacity: 0;
-    transform: scale(0.985);
+    transform: scale(0.965);
+  }
+  72% {
+    opacity: 1;
+    transform: scale(1.012);
   }
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes image-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }

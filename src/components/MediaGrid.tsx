@@ -1,5 +1,5 @@
 import { Grid2X2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { MediaItem } from "../lib/types";
 import { MediaTile } from "./MediaTile";
 
@@ -20,6 +20,7 @@ export function MediaGrid({
   onAddFolder,
   onSelect,
   onOpen,
+  onContextMenu,
   onMeasure,
   onIndexColors,
   gridColumns,
@@ -32,6 +33,7 @@ export function MediaGrid({
   onAddFolder: () => void;
   onSelect: (index: number) => void;
   onOpen: (index: number) => void;
+  onContextMenu: (event: MouseEvent, index: number) => void;
   onMeasure: (mediaId: string, width: number, height: number) => void;
   onIndexColors: (mediaId: string, dominantColors: string[], colorNames: string[]) => void;
   gridColumns: number;
@@ -95,6 +97,7 @@ export function MediaGrid({
               onSelect(position.index);
               onOpen(position.index);
             }}
+            onContextMenu={(event) => onContextMenu(event, position.index)}
             onMeasure={(width, height) => onMeasure(position.item.id, width, height)}
             onIndexColors={(dominantColors, colorNames) =>
               onIndexColors(position.item.id, dominantColors, colorNames)

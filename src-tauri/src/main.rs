@@ -14,6 +14,7 @@ fn main() {
             commands::get_media_file,
             commands::save_tags,
             commands::save_media_index,
+            commands::reconnect_folder,
             commands::get_library
         ])
         .setup(|app| {

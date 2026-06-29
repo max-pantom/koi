@@ -46,6 +46,15 @@ export function playSound(event: SoundEvent) {
   }
 }
 
+export function areSoundsEnabled() {
+  return (localStorage.getItem("koi.soundEnabled") ?? "true") === "true";
+}
+
+export function setSoundsEnabled(enabled: boolean) {
+  localStorage.setItem("koi.soundEnabled", enabled ? "true" : "false");
+  if (enabled) playSound("command_open");
+}
+
 function soundShape(event: SoundEvent): [number, number] {
   if (event === "focus_open") return [680, 0.12];
   if (event === "focus_close") return [420, 0.1];

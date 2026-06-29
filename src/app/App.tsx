@@ -4,10 +4,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { CommandMenu } from "../components/CommandMenu";
 import { FocusView } from "../components/FocusView";
+import { MediaContextMenu } from "../components/MediaContextMenu";
 import { MediaGrid } from "../components/MediaGrid";
+import { PalettePopover } from "../components/PalettePopover";
+import { SettingsWindow } from "../components/SettingsWindow";
+import { TagEditor } from "../components/TagEditor";
 import { TopBar } from "../components/TopBar";
 import { mediaSrc } from "../lib/media";
-import { playSound } from "../lib/sound";
+import { areSoundsEnabled, playSound, setSoundsEnabled } from "../lib/sound";
 import type { MediaItem } from "../lib/types";
 import { initialRoute } from "./routes";
 import { useKeyboard } from "../state/useKeyboard";
@@ -18,10 +22,17 @@ export function App() {
   const store = useLibraryStore();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
+  const [isTagEditorOpen, setIsTagEditorOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDark, setIsDark] = useState(() => localStorage.getItem("koi.theme") === "dark");
+  const [soundsEnabled, setSoundsEnabledState] = useState(() => areSoundsEnabled());
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: MediaItem } | undefined>();
   const [previewMode, setPreviewMode] = useState<"none" | "quick" | "focus">("none");
   const [showSimilar, setShowSimilar] = useState(false);
   const [route, setRoute] = useState(initialRoute);
   const searchRef = useRef<HTMLInputElement>(null);
+  const tagInputRef = useRef<HTMLInputElement>(null);
 
   const isFocusOpen = previewMode !== "none" && !!store.selectedItem;
   const activeFolder =
@@ -61,11 +72,19 @@ export function App() {
     if (isSearchOpen) searchRef.current?.focus();
   }, [isSearchOpen]);
 
+  useEffect(() => {
+    if (isTagEditorOpen) tagInputRef.current?.focus();
+  }, [isTagEditorOpen]);
+
   const closeLayer = () => {
     if (previewMode !== "none") playSound("focus_close");
     if (isSearchOpen) store.setQuery("");
     setIsSearchOpen(false);
     setIsCommandOpen(false);
+    setIsTagEditorOpen(false);
+    setIsPaletteOpen(false);
+    setIsSettingsOpen(false);
+    setContextMenu(undefined);
     setShowSimilar(false);
     setPreviewMode("none");
     setRoute({ view: "grid" });
@@ -91,6 +110,14 @@ export function App() {
     }
   };
 
+  const copyPalette = (item = store.selectedItem) => {
+    if (!item) return;
+    const palette = item.dominantColors.slice(0, 5).join(" ");
+    if (!palette) return;
+    void navigator.clipboard.writeText(palette);
+    playSound("copy");
+  };
+
   const copyImage = async () => {
     if (!store.selectedItem || !("ClipboardItem" in window)) {
       copyPath();
@@ -107,6 +134,52 @@ export function App() {
     }
   };
 
+  const editTags = () => {
+    if (!store.selectedItem) return;
+    setPreviewMode("none");
+    setShowSimilar(false);
+    setIsTagEditorOpen(true);
+    playSound("command_open");
+  };
+
+  const toggleSounds = () => {
+    const next = !areSoundsEnabled();
+    setSoundsEnabled(next);
+    setSoundsEnabledState(next);
+  };
+
+  const toggleDarkMode = () => {
+    setIsDark((value) => {
+      const next = !value;
+      localStorage.setItem("koi.theme", next ? "dark" : "light");
+      playSound("command_open");
+      return next;
+    });
+  };
+
+  const openPalette = () => {
+    if (!store.selectedItem) return;
+    setIsPaletteOpen(true);
+    setContextMenu(undefined);
+    playSound("command_open");
+  };
+
+  const searchColor = (color: string) => {
+    store.setSearchMode("smart");
+    store.setQuery(color);
+    setIsSearchOpen(true);
+    setIsPaletteOpen(false);
+    playSound("search_open");
+  };
+
+  const resolveFolder = (folderId?: string) => {
+    const targetFolderId = folderId ?? store.selectedItem?.folderId ?? activeFolder?.id;
+    if (!targetFolderId || targetFolderId === "all") return;
+    void store.reconnectFolder(targetFolderId).then(() => playSound("folder_added"));
+  };
+
+  const missingCount = store.items.filter((item) => item.missing).length;
+
   const commands = [
     { id: "add-folder", label: "Add folder", shortcut: "Cmd O", run: () => void store.addFolder().then(() => playSound("folder_added")) },
     { id: "search", label: "Search", shortcut: "Cmd F", run: () => {
@@ -115,14 +188,18 @@ export function App() {
     } },
     { id: "all-folders", label: "Show all folders", shortcut: "All", run: () => store.setActiveFolderId("all") },
     { id: "current-folder", label: "Show current folder", shortcut: "Folder", run: () => store.selectedItem && store.setActiveFolderId(store.selectedItem.folderId) },
-    { id: "rescan", label: "Rescan", shortcut: "Manual", run: () => void store.rescan() },
+    { id: "rescan", label: "Rescan", shortcut: "Cmd R", run: () => void store.rescan().then(() => playSound("folder_added")) },
     { id: "reveal", label: "Reveal in Finder", shortcut: "Cmd Shift R", run: revealSelected },
     { id: "copy-path", label: "Copy path", shortcut: "Cmd Shift C", run: copyPath },
     { id: "copy-name", label: "Copy image name", shortcut: "Cmd Opt C", run: copyName },
-    { id: "edit-tags", label: "Edit tags", shortcut: "Later", run: () => undefined },
+    { id: "palette", label: "Show palette", shortcut: "P", run: openPalette },
+    { id: "copy-palette", label: "Copy palette", shortcut: "Palette", run: () => copyPalette() },
+    { id: "edit-tags", label: "Edit tags", shortcut: "T", run: editTags },
+    { id: "resolve-missing", label: "Locate missing folder", shortcut: "Local", run: () => resolveFolder() },
     { id: "open-inbox", label: "Open inbox", shortcut: "Cmd Shift I", run: () => store.inboxFolderId && store.setActiveFolderId(store.inboxFolderId) },
     { id: "set-inbox", label: "Set current folder as inbox", shortcut: "Local", run: () => activeFolder && store.setInboxFolderId(activeFolder.id) },
-    { id: "toggle-sounds", label: "Toggle sounds", shortcut: "Later", run: () => undefined },
+    { id: "toggle-sounds", label: "Toggle sounds", shortcut: soundsEnabled ? "On" : "Off", run: toggleSounds },
+    { id: "toggle-dark", label: "Toggle dark mode", shortcut: "M", run: toggleDarkMode },
     { id: "compact-grid", label: "Toggle compact grid", shortcut: "Cmd +/-", run: () => store.setGridColumns(store.gridColumns >= 10 ? 6 : 12) },
   ];
 
@@ -137,6 +214,9 @@ export function App() {
       playSound("search_open");
     },
     closeLayer,
+    editTags,
+    showPalette: openPalette,
+    toggleDarkMode,
     openSelected: () => {
       if (previewMode === "focus") {
         setPreviewMode("none");
@@ -160,6 +240,35 @@ export function App() {
       store.moveSelection(delta);
       playSound("select");
     },
+    jumpToTop: () => {
+      store.jumpToTop();
+      playSound("select");
+    },
+    jumpToBottom: () => {
+      store.jumpToBottom();
+      playSound("select");
+    },
+    rescan: () => void store.rescan().then(() => playSound("folder_added")),
+    removeSelected: () => {
+      store.removeSelected();
+      playSound("command_open");
+    },
+    showGrid: () => {
+      setPreviewMode("none");
+      setRoute({ view: "grid" });
+      playSound("focus_close");
+    },
+    showFocus: () => {
+      if (store.selectedItem) {
+        setPreviewMode("focus");
+        setRoute({ view: "focus" });
+        playSound("focus_open");
+      }
+    },
+    openPreferences: () => {
+      setIsSettingsOpen(true);
+      playSound("command_open");
+    },
     revealInFinder: revealSelected,
     copyImage,
     copyPath,
@@ -174,7 +283,7 @@ export function App() {
   });
 
   return (
-    <main className={isFocusOpen ? "app is-previewing" : "app"}>
+    <main className={`${isFocusOpen ? "app is-previewing" : "app"}${isDark ? " is-dark" : ""}`}>
       <TopBar
         folder={activeFolder}
         folders={store.folders}
@@ -207,6 +316,11 @@ export function App() {
             setPreviewMode("focus");
             playSound("focus_open");
           }}
+          onContextMenu={(event, index) => {
+            event.preventDefault();
+            store.setSelectedIndex(index);
+            setContextMenu({ x: event.clientX, y: event.clientY, item: store.filteredItems[index] });
+          }}
           onMeasure={store.updateItemSize}
           onIndexColors={(mediaId, dominantColors, colorNames) =>
             void store.saveMediaIndex(mediaId, dominantColors, colorNames)
@@ -219,6 +333,12 @@ export function App() {
       {store.error && (
         <button className="toast" type="button" onClick={store.clearError}>
           {store.error}
+        </button>
+      )}
+
+      {missingCount > 0 && (
+        <button className="missing-toast" type="button" onClick={() => resolveFolder()}>
+          {missingCount} missing
         </button>
       )}
 
@@ -244,6 +364,81 @@ export function App() {
       )}
 
       {isCommandOpen && <CommandMenu commands={commands} onClose={() => setIsCommandOpen(false)} />}
+
+      {isSettingsOpen && (
+        <SettingsWindow
+          isDark={isDark}
+          soundsEnabled={soundsEnabled}
+          onToggleDark={toggleDarkMode}
+          onToggleSounds={toggleSounds}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
+
+      {isPaletteOpen && store.selectedItem && (
+        <PalettePopover
+          item={store.selectedItem}
+          onClose={() => setIsPaletteOpen(false)}
+          onCopyHex={(hex) => {
+            void navigator.clipboard.writeText(hex);
+            playSound("copy");
+          }}
+          onCopyPalette={() => copyPalette()}
+          onSearchColor={searchColor}
+        />
+      )}
+
+      {contextMenu && (
+        <MediaContextMenu
+          item={contextMenu.item}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(undefined)}
+          onReveal={() => {
+            void revealItemInDir(contextMenu.item.path);
+            setContextMenu(undefined);
+          }}
+          onCopyPath={() => {
+            void navigator.clipboard.writeText(contextMenu.item.path);
+            setContextMenu(undefined);
+            playSound("copy");
+          }}
+          onCopyName={() => {
+            void navigator.clipboard.writeText(contextMenu.item.name);
+            setContextMenu(undefined);
+            playSound("copy");
+          }}
+          onCopyPalette={() => {
+            copyPalette(contextMenu.item);
+            setContextMenu(undefined);
+          }}
+          onEditTags={() => {
+            setContextMenu(undefined);
+            editTags();
+          }}
+          onShowPalette={() => {
+            setContextMenu(undefined);
+            setIsPaletteOpen(true);
+          }}
+          onResolveFolder={() => {
+            resolveFolder(contextMenu.item.folderId);
+            setContextMenu(undefined);
+          }}
+        />
+      )}
+
+      {isTagEditorOpen && store.selectedItem && (
+        <TagEditor
+          item={store.selectedItem}
+          inputRef={tagInputRef}
+          onClose={() => setIsTagEditorOpen(false)}
+          onSave={(tags) => {
+            void store.saveTags(store.selectedItem!.id, tags);
+            setIsTagEditorOpen(false);
+            playSound("copy");
+          }}
+        />
+      )}
 
     </main>
   );

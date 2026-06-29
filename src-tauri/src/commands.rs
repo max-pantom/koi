@@ -70,6 +70,17 @@ pub fn save_media_index(
 }
 
 #[tauri::command]
+pub fn reconnect_folder(app: AppHandle, folder_id: String) -> Result<(), String> {
+    let folder_path = rfd::FileDialog::new()
+        .set_title("Locate moved folder")
+        .pick_folder()
+        .ok_or_else(|| "No folder selected.".to_string())?;
+    db::reconnect_folder(&app, &folder_id, &folder_path)?;
+    crate::watcher::watch_folder(app, folder_path);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_library(app: AppHandle) -> Result<LibraryState, String> {
     db::get_library(&app)
 }

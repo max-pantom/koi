@@ -24,7 +24,7 @@ export function FocusView({
   onSelectSimilar: (item: MediaItem) => void;
 }) {
   return (
-    <div className={`preview-layer preview-${mode}`} role="dialog" aria-modal="true" onMouseDown={onClose}>
+    <div className={`preview-layer preview-${mode}`} role="dialog" aria-modal="true" onPointerDown={onClose}>
       <img className="preview-blur" src={mediaSrc(item)} alt="" draggable={false} />
       <button className="preview-close" type="button" onClick={onClose} title="Close">
         <X size={17} />
@@ -32,19 +32,19 @@ export function FocusView({
       <button
         className="preview-nav left"
         type="button"
-        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
         onClick={onPrevious}
         title="Previous"
       >
         <ArrowLeft size={18} />
       </button>
       <div className="preview-media">
-        <img src={mediaSrc(item)} alt="" draggable={false} onMouseDown={(event) => event.stopPropagation()} />
+        <img src={mediaSrc(item)} alt="" draggable={false} onPointerDown={(event) => event.stopPropagation()} />
       </div>
       <button
         className="preview-nav right"
         type="button"
-        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
         onClick={onNext}
         title="Next"
       >
@@ -53,14 +53,14 @@ export function FocusView({
       <button
         className="similar-toggle"
         type="button"
-        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
         onClick={onToggleSimilar}
       >
         Similar
       </button>
       <div className="preview-caption">{item.name}</div>
       {showSimilar && (
-        <div className="similar-strip" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="similar-strip" onPointerDown={(event) => event.stopPropagation()}>
           {similarItems.map((similar) => (
             <button key={similar.id} type="button" onClick={() => onSelectSimilar(similar)} title={similar.name}>
               <img src={mediaSrc(similar)} alt="" draggable={false} />

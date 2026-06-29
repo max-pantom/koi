@@ -9,6 +9,8 @@ export const shortcuts = [
   { keys: "G G", label: "Jump to top" },
   { keys: "Shift G", label: "Jump to bottom" },
   { keys: "T", label: "Edit tags" },
+  { keys: "P", label: "Show palette" },
+  { keys: "M", label: "Dark mode" },
   { keys: "Cmd 1", label: "Grid view" },
   { keys: "Cmd 2", label: "Focus view" },
   { keys: "Cmd R", label: "Rescan folder" },

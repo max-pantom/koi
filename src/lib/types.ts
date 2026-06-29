@@ -21,6 +21,7 @@ export type MediaItem = {
   tags: string[];
   dominantColors: string[];
   colorNames: string[];
+  missing: boolean;
 };
 
 export type LibraryState = {

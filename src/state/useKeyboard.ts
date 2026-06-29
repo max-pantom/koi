@@ -5,10 +5,20 @@ type KeyboardActions = {
   openCommandMenu: () => void;
   openSearch: () => void;
   closeLayer: () => void;
+  editTags: () => void;
+  showPalette: () => void;
+  toggleDarkMode: () => void;
   openSelected: () => void;
   quickLook: () => void;
   toggleSimilar: () => void;
   moveSelection: (delta: number) => void;
+  jumpToTop: () => void;
+  jumpToBottom: () => void;
+  rescan: () => void;
+  removeSelected: () => void;
+  showGrid: () => void;
+  showFocus: () => void;
+  openPreferences: () => void;
   revealInFinder: () => void;
   copyImage: () => void;
   copyPath: () => void;
@@ -21,6 +31,7 @@ type KeyboardActions = {
 
 export function useKeyboard(actions: KeyboardActions) {
   const lastKey = useRef("");
+  const lastMoveAt = useRef(0);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -35,6 +46,10 @@ export function useKeyboard(actions: KeyboardActions) {
       if (event.metaKey && event.shiftKey && key === "c") return run(event, actions.copyPath);
       if (event.metaKey && event.altKey && key === "c") return run(event, actions.copyName);
       if (event.metaKey && event.shiftKey && key === "i") return run(event, actions.openInbox);
+      if (event.metaKey && key === "1") return run(event, actions.showGrid);
+      if (event.metaKey && key === "2") return run(event, actions.showFocus);
+      if (event.metaKey && key === "r") return run(event, actions.rescan);
+      if (event.metaKey && key === ",") return run(event, actions.openPreferences);
       if (event.metaKey && (key === "=" || key === "+")) return run(event, actions.largerThumbnails);
       if (event.metaKey && key === "-") return run(event, actions.smallerThumbnails);
       if (event.metaKey && key === "0") return run(event, actions.resetThumbnails);
@@ -43,13 +58,22 @@ export function useKeyboard(actions: KeyboardActions) {
       if (isTyping && key !== "escape") return;
 
       if (key === "escape") return run(event, actions.closeLayer);
+      if (key === "backspace" || key === "delete") return run(event, actions.removeSelected);
       if (key === "enter") return run(event, actions.openSelected);
       if (key === " ") return run(event, actions.quickLook);
+      if (key === "m") return run(event, actions.toggleDarkMode);
+      if (key === "p") return run(event, actions.showPalette);
       if (key === "s") return run(event, actions.toggleSimilar);
-      if (key === "arrowright" || key === "l" || key === "j") return run(event, () => actions.moveSelection(1));
-      if (key === "arrowleft" || key === "h" || key === "k") return run(event, () => actions.moveSelection(-1));
-      if (key === "arrowdown") return run(event, () => actions.moveSelection(6));
-      if (key === "arrowup") return run(event, () => actions.moveSelection(-6));
+      if (key === "t") return run(event, actions.editTags);
+      if (event.shiftKey && key === "g") return run(event, actions.jumpToBottom);
+      if (key === "g" && lastKey.current === "g") {
+        lastKey.current = "";
+        return run(event, actions.jumpToTop);
+      }
+      if (key === "arrowright" || key === "l" || key === "j") return move(event, lastMoveAt, () => actions.moveSelection(1));
+      if (key === "arrowleft" || key === "h" || key === "k") return move(event, lastMoveAt, () => actions.moveSelection(-1));
+      if (key === "arrowdown") return move(event, lastMoveAt, () => actions.moveSelection(6));
+      if (key === "arrowup") return move(event, lastMoveAt, () => actions.moveSelection(-6));
 
       lastKey.current = key;
       window.setTimeout(() => {
@@ -65,4 +89,14 @@ export function useKeyboard(actions: KeyboardActions) {
 function run(event: KeyboardEvent, action: () => void) {
   event.preventDefault();
   action();
+}
+
+function move(event: KeyboardEvent, lastMoveAt: { current: number }, action: () => void) {
+  const now = performance.now();
+  if (now - lastMoveAt.current < 44) {
+    event.preventDefault();
+    return;
+  }
+  lastMoveAt.current = now;
+  run(event, action);
 }

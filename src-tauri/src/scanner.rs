@@ -32,6 +32,7 @@ pub struct MediaItem {
     pub tags: Vec<String>,
     pub dominant_colors: Vec<String>,
     pub color_names: Vec<String>,
+    pub missing: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -117,6 +118,7 @@ fn scan_dir(root: &Path, dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>
             tags: Vec::new(),
             dominant_colors,
             color_names,
+            missing: false,
         });
     }
 

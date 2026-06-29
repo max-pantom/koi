@@ -1,6 +1,6 @@
 use crate::scanner::{Folder, LibraryState, MediaItem};
 use rusqlite::{params, Connection};
-use std::{fs, path::PathBuf};
+use std::{fs, path::{Path, PathBuf}};
 use tauri::{AppHandle, Manager};
 
 pub fn get_library(app: &AppHandle) -> Result<LibraryState, String> {
@@ -91,6 +91,55 @@ pub fn save_media_index(
     Ok(())
 }
 
+pub fn reconnect_folder(app: &AppHandle, folder_id: &str, new_folder_path: &Path) -> Result<(), String> {
+    if !new_folder_path.is_dir() {
+        return Err("Choose the moved folder.".into());
+    }
+
+    let mut conn = connect(app)?;
+    let tx = conn.transaction().map_err(|error| error.to_string())?;
+    let old_path: String = tx
+        .query_row("select path from folders where id = ?1", params![folder_id], |row| row.get(0))
+        .map_err(|_| "That folder is not in Koi anymore.".to_string())?;
+    let new_path = new_folder_path.to_string_lossy().to_string();
+    let new_name = new_folder_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    tx.execute(
+        "update folders set name = ?1, path = ?2 where id = ?3",
+        params![new_name, new_path, folder_id],
+    )
+    .map_err(|error| error.to_string())?;
+
+    let mut stmt = tx
+        .prepare("select id, path from media where folder_id = ?1")
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map(params![folder_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    drop(stmt);
+
+    for (media_id, media_path) in rows {
+        let relative = Path::new(&media_path).strip_prefix(Path::new(&old_path)).ok();
+        if let Some(relative) = relative {
+            let repaired = new_folder_path.join(relative).to_string_lossy().to_string();
+            tx.execute(
+                "update media set path = ?1 where id = ?2",
+                params![repaired, media_id],
+            )
+            .map_err(|error| error.to_string())?;
+        }
+    }
+
+    tx.commit().map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 fn connect(app: &AppHandle) -> Result<Connection, String> {
     let db_path = db_path(app)?;
     let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
@@ -178,10 +227,11 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
             let tags: String = row.get(10)?;
             let dominant_colors: String = row.get(11)?;
             let color_names: String = row.get(12)?;
+            let path: String = row.get(2)?;
             Ok(MediaItem {
                 id: row.get(0)?,
                 folder_id: row.get(1)?,
-                path: row.get(2)?,
+                path: path.clone(),
                 name: row.get(3)?,
                 extension: row.get(4)?,
                 kind: row.get(5)?,
@@ -192,6 +242,7 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
                 tags: deserialize_tags(&tags),
                 dominant_colors: deserialize_tags(&dominant_colors),
                 color_names: deserialize_tags(&color_names),
+                missing: !Path::new(&path).is_file(),
             })
         })
         .map_err(|error| error.to_string())?;
