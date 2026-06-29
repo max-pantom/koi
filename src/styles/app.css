@@ -43,9 +43,10 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 50px;
-  padding: 14px 14px 10px 16px;
-  background: #fff;
+  height: 48px;
+  padding: 12px 14px 12px 82px;
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .toolbar-left,
@@ -54,39 +55,6 @@ button {
   align-items: center;
   gap: 4px;
   min-width: 0;
-}
-
-.toolbar-left {
-  gap: 13px;
-}
-
-.traffic-lights {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-right: 0;
-}
-
-.traffic-lights span {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-}
-
-.traffic-red {
-  background: #fb403b;
-}
-
-.traffic-yellow {
-  background: #fdcf21;
-}
-
-.traffic-green {
-  background: #3cc94d;
-}
-
-.toolbar-left > .icon-button {
-  margin-left: -9px;
 }
 
 .folder-switch {
@@ -241,6 +209,13 @@ button {
 
 .workspace {
   height: 100vh;
+  transition: filter 160ms ease, opacity 160ms ease;
+}
+
+.app.is-previewing .workspace,
+.app.is-previewing .toolbar {
+  filter: blur(14px);
+  opacity: 0.34;
 }
 
 .grid-wrap {
@@ -319,8 +294,8 @@ button {
   position: fixed;
   inset: 0;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(30px);
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(10px);
 }
 
 .preview-layer {
@@ -331,7 +306,7 @@ button {
   justify-items: center;
   padding: 56px 18px 18px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .preview-blur {
@@ -342,7 +317,7 @@ button {
   height: 124%;
   object-fit: cover;
   filter: blur(52px) saturate(1.15);
-  opacity: 0.34;
+  opacity: 0.24;
   transform: scale(1.05);
 }
 

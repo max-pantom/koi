@@ -137,7 +137,7 @@ export function App() {
   });
 
   return (
-    <main className="app">
+    <main className={isFocusOpen ? "app is-previewing" : "app"}>
       <TopBar
         folder={activeFolder}
         folders={store.folders}

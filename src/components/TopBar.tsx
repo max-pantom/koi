@@ -44,11 +44,6 @@ export function TopBar({
   return (
     <header className="toolbar">
       <div className="toolbar-left">
-        <div className="traffic-lights" aria-hidden="true">
-          <span className="traffic-red" />
-          <span className="traffic-yellow" />
-          <span className="traffic-green" />
-        </div>
         <button className="icon-button" type="button" onClick={onAddFolder} title="Add folder">
           <FolderPlus size={14} />
         </button>
