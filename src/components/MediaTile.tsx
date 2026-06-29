@@ -1,6 +1,7 @@
 import { mediaSrc } from "../lib/media";
 import type { MediaItem } from "../lib/types";
 import type { CSSProperties } from "react";
+import { extractColorIndex } from "../lib/colorIndex";
 
 export function MediaTile({
   item,
@@ -8,12 +9,14 @@ export function MediaTile({
   style,
   onSelect,
   onMeasure,
+  onIndexColors,
 }: {
   item: MediaItem;
   isActive: boolean;
   style: CSSProperties;
   onSelect: () => void;
   onMeasure: (width: number, height: number) => void;
+  onIndexColors: (dominantColors: string[], colorNames: string[]) => void;
 }) {
   return (
     <button
@@ -32,6 +35,10 @@ export function MediaTile({
         onLoad={(event) => {
           const image = event.currentTarget;
           onMeasure(image.naturalWidth, image.naturalHeight);
+          if (!item.colorNames.length) {
+            const index = extractColorIndex(image);
+            if (index) onIndexColors(index.dominantColors, index.colorNames);
+          }
         }}
       />
     </button>

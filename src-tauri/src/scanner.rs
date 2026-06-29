@@ -30,6 +30,8 @@ pub struct MediaItem {
     pub created_at: Option<u64>,
     pub modified_at: Option<u64>,
     pub tags: Vec<String>,
+    pub dominant_colors: Vec<String>,
+    pub color_names: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -112,6 +114,8 @@ fn scan_dir(root: &Path, dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>
             created_at: metadata.created().ok().and_then(to_secs),
             modified_at: metadata.modified().ok().and_then(to_secs),
             tags: Vec::new(),
+            dominant_colors: Vec::new(),
+            color_names: Vec::new(),
         });
     }
 

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useMemo, useState } from "react";
 import { searchMedia } from "../lib/search";
-import type { Folder, LibraryState, MediaItem, ViewMode } from "../lib/types";
+import type { Folder, LibraryState, MediaItem, SearchMode, ViewMode } from "../lib/types";
 
 type LibraryStore = {
   folders: Folder[];
@@ -10,6 +10,9 @@ type LibraryStore = {
   selectedIndex: number;
   selectedItem?: MediaItem;
   query: string;
+  searchMode: SearchMode;
+  activeFolderId: string;
+  gridColumns: number;
   viewMode: ViewMode;
   isLoading: boolean;
   error: string;
@@ -18,7 +21,11 @@ type LibraryStore = {
   rescan: () => Promise<void>;
   removeSelected: () => void;
   updateItemSize: (mediaId: string, width: number, height: number) => void;
+  saveMediaIndex: (mediaId: string, dominantColors: string[], colorNames: string[]) => Promise<void>;
   setQuery: (query: string) => void;
+  setSearchMode: (mode: SearchMode) => void;
+  setActiveFolderId: (folderId: string) => void;
+  setGridColumns: (columns: number) => void;
   setViewMode: (viewMode: ViewMode) => void;
   setSelectedIndex: (index: number) => void;
   moveSelection: (delta: number) => void;
@@ -32,11 +39,25 @@ export function useLibraryStore(): LibraryStore {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [selectedIndex, setSelectedIndexState] = useState(0);
   const [query, setQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<SearchMode>("normal");
+  const [activeFolderId, setActiveFolderId] = useState("all");
+  const [gridColumns, setGridColumnsState] = useState(6);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const filteredItems = useMemo(() => searchMedia(items, query), [items, query]);
+  const scopedItems = useMemo(() => {
+    if (activeFolderId === "all") return items;
+    return items.filter((item) => item.folderId === activeFolderId);
+  }, [activeFolderId, items]);
+  const searchableItems = useMemo(() => {
+    const folderNames = new Map(folders.map((folder) => [folder.id, folder.name]));
+    return scopedItems.map((item) => ({
+      ...item,
+      folderId: folderNames.get(item.folderId) ?? item.folderId,
+    }));
+  }, [folders, scopedItems]);
+  const filteredItems = useMemo(() => searchMedia(searchableItems, query, searchMode), [query, searchableItems, searchMode]);
   const selectedItem = filteredItems[Math.min(selectedIndex, Math.max(filteredItems.length - 1, 0))];
 
   const setLibrary = useCallback((library: LibraryState) => {
@@ -113,6 +134,17 @@ export function useLibraryStore(): LibraryStore {
     );
   }, []);
 
+  const saveMediaIndex = useCallback(async (mediaId: string, dominantColors: string[], colorNames: string[]) => {
+    setItems((current) =>
+      current.map((item) => (item.id === mediaId ? { ...item, dominantColors, colorNames } : item)),
+    );
+    try {
+      await invoke("save_media_index", { mediaId, dominantColors, colorNames });
+    } catch {
+      // Color indexing is best-effort and should never interrupt browsing.
+    }
+  }, []);
+
   return {
     folders,
     items,
@@ -120,6 +152,9 @@ export function useLibraryStore(): LibraryStore {
     selectedIndex,
     selectedItem,
     query,
+    searchMode,
+    activeFolderId,
+    gridColumns,
     viewMode,
     isLoading,
     error,
@@ -128,7 +163,14 @@ export function useLibraryStore(): LibraryStore {
     rescan,
     removeSelected,
     updateItemSize,
+    saveMediaIndex,
     setQuery,
+    setSearchMode,
+    setActiveFolderId: (folderId) => {
+      setActiveFolderId(folderId);
+      setSelectedIndexState(0);
+    },
+    setGridColumns: (columns) => setGridColumnsState(clamp(columns, 4, 16)),
     setViewMode,
     setSelectedIndex,
     moveSelection,

@@ -15,6 +15,7 @@ pub fn add_folder(app: AppHandle) -> Result<Folder, String> {
     db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
     db::save_media(&app, &items)?;
+    crate::watcher::watch_folder(app, folder_path);
     Ok(folder)
 }
 
@@ -24,6 +25,7 @@ pub fn scan_folder(app: AppHandle, folder_path: String) -> Result<Vec<MediaItem>
     db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder_path, &folder.id)?;
     db::save_media(&app, &items)?;
+    crate::watcher::watch_folder(app, PathBuf::from(folder_path));
     Ok(items)
 }
 
@@ -44,6 +46,16 @@ pub fn save_tags(app: AppHandle, media_id: String, tags: Vec<String>) -> Result<
         .filter(|tag| !tag.is_empty())
         .collect::<Vec<_>>();
     db::save_tags(&app, &media_id, &cleaned)
+}
+
+#[tauri::command]
+pub fn save_media_index(
+    app: AppHandle,
+    media_id: String,
+    dominant_colors: Vec<String>,
+    color_names: Vec<String>,
+) -> Result<(), String> {
+    db::save_media_index(&app, &media_id, &dominant_colors, &color_names)
 }
 
 #[tauri::command]

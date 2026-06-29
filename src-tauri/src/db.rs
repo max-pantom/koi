@@ -29,11 +29,20 @@ pub fn save_media(app: &AppHandle, items: &[MediaItem]) -> Result<(), String> {
             .query_row("select tags from media where id = ?1", params![item.id], |row| row.get(0))
             .ok();
         let tags = existing_tags.unwrap_or_else(|| serialize_tags(&item.tags));
+        let existing_colors: Option<(String, String)> = tx
+            .query_row(
+                "select dominant_colors, color_names from media where id = ?1",
+                params![item.id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .ok();
+        let (dominant_colors, color_names) = existing_colors
+            .unwrap_or_else(|| (serialize_tags(&item.dominant_colors), serialize_tags(&item.color_names)));
 
         tx.execute(
             "insert or replace into media
-            (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags)
-            values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names)
+            values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 item.id,
                 item.folder_id,
@@ -45,7 +54,9 @@ pub fn save_media(app: &AppHandle, items: &[MediaItem]) -> Result<(), String> {
                 item.height,
                 item.created_at,
                 item.modified_at,
-                tags
+                tags,
+                dominant_colors,
+                color_names
             ],
         )
         .map_err(|error| error.to_string())?;
@@ -60,6 +71,21 @@ pub fn save_tags(app: &AppHandle, media_id: &str, tags: &[String]) -> Result<(),
     conn.execute(
         "update media set tags = ?1 where id = ?2",
         params![serialize_tags(tags), media_id],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+pub fn save_media_index(
+    app: &AppHandle,
+    media_id: &str,
+    dominant_colors: &[String],
+    color_names: &[String],
+) -> Result<(), String> {
+    let conn = connect(app)?;
+    conn.execute(
+        "update media set dominant_colors = ?1, color_names = ?2 where id = ?3",
+        params![serialize_tags(dominant_colors), serialize_tags(color_names), media_id],
     )
     .map_err(|error| error.to_string())?;
     Ok(())
@@ -106,7 +132,19 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         );
         ",
     )
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?;
+    add_column(conn, "media", "dominant_colors", "text not null default '[]'")?;
+    add_column(conn, "media", "color_names", "text not null default '[]'")?;
+    Ok(())
+}
+
+fn add_column(conn: &Connection, table: &str, column: &str, definition: &str) -> Result<(), String> {
+    let sql = format!("alter table {table} add column {column} {definition}");
+    match conn.execute(&sql, []) {
+        Ok(_) => Ok(()),
+        Err(error) if error.to_string().contains("duplicate column") => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 fn read_folders(conn: &Connection) -> Result<Vec<Folder>, String> {
@@ -130,7 +168,7 @@ fn read_folders(conn: &Connection) -> Result<Vec<Folder>, String> {
 fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
     let mut stmt = conn
         .prepare(
-            "select id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags
+            "select id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names
             from media
             order by coalesce(modified_at, created_at, 0) desc, name asc",
         )
@@ -138,6 +176,8 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
     let rows = stmt
         .query_map([], |row| {
             let tags: String = row.get(10)?;
+            let dominant_colors: String = row.get(11)?;
+            let color_names: String = row.get(12)?;
             Ok(MediaItem {
                 id: row.get(0)?,
                 folder_id: row.get(1)?,
@@ -150,6 +190,8 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
                 created_at: row.get(8)?,
                 modified_at: row.get(9)?,
                 tags: deserialize_tags(&tags),
+                dominant_colors: deserialize_tags(&dominant_colors),
+                color_names: deserialize_tags(&color_names),
             })
         })
         .map_err(|error| error.to_string())?;

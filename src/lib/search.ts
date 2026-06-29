@@ -1,8 +1,14 @@
-import type { MediaItem } from "./types";
+import type { MediaItem, SearchMode } from "./types";
 
-export function searchMedia(items: MediaItem[], query: string) {
+export function searchMedia(items: MediaItem[], query: string, mode: SearchMode) {
   const term = query.trim().toLowerCase();
   if (!term) return items;
 
-  return items.filter((item) => item.name.toLowerCase().includes(term));
+  return items.filter((item) => {
+    if (mode === "smart") {
+      return item.colorNames.some((color) => color.includes(term));
+    }
+
+    return `${item.name} ${item.folderId} ${item.tags.join(" ")}`.toLowerCase().includes(term);
+  });
 }

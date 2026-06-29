@@ -14,14 +14,14 @@ export function FocusView({
   onNext: () => void;
 }) {
   return (
-    <div className="preview-layer" role="dialog" aria-modal="true">
+    <div className="preview-layer" role="dialog" aria-modal="true" onMouseDown={onClose}>
       <button className="preview-close" type="button" onClick={onClose} title="Close">
         <X size={17} />
       </button>
       <button className="preview-nav left" type="button" onClick={onPrevious} title="Previous">
         <ArrowLeft size={18} />
       </button>
-      <div className="preview-media">
+      <div className="preview-media" onMouseDown={(event) => event.stopPropagation()}>
         <img src={mediaSrc(item)} alt="" draggable={false} />
       </div>
       <button className="preview-nav right" type="button" onClick={onNext} title="Next">

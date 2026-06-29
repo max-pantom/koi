@@ -19,6 +19,8 @@ export type MediaItem = {
   createdAt?: number;
   modifiedAt?: number;
   tags: string[];
+  dominantColors: string[];
+  colorNames: string[];
 };
 
 export type LibraryState = {
@@ -27,3 +29,4 @@ export type LibraryState = {
 };
 
 export type ViewMode = "grid" | "focus";
+export type SearchMode = "normal" | "smart";

@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod scanner;
+mod watcher;
 
 fn main() {
     tauri::Builder::default()
@@ -11,8 +12,13 @@ fn main() {
             commands::scan_folder,
             commands::get_media_file,
             commands::save_tags,
+            commands::save_media_index,
             commands::get_library
         ])
+        .setup(|app| {
+            watcher::start_existing_watchers(app.handle().clone());
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running Koi");
 }

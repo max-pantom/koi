@@ -21,6 +21,8 @@ export function MediaGrid({
   onSelect,
   onOpen,
   onMeasure,
+  onIndexColors,
+  gridColumns,
 }: {
   items: MediaItem[];
   selectedItem?: MediaItem;
@@ -30,6 +32,8 @@ export function MediaGrid({
   onSelect: (index: number) => void;
   onOpen: (index: number) => void;
   onMeasure: (mediaId: string, width: number, height: number) => void;
+  onIndexColors: (mediaId: string, dominantColors: string[], colorNames: string[]) => void;
+  gridColumns: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -55,8 +59,8 @@ export function MediaGrid({
   }, []);
 
   const masonry = useMemo(
-    () => buildMasonry(items, Math.max(containerWidth - 72, 0), viewport.top, viewport.height),
-    [containerWidth, items, viewport.height, viewport.top],
+    () => buildMasonry(items, Math.max(containerWidth - 72, 0), viewport.top, viewport.height, gridColumns),
+    [containerWidth, gridColumns, items, viewport.height, viewport.top],
   );
 
   if (!items.length) {
@@ -88,6 +92,9 @@ export function MediaGrid({
               onOpen(position.index);
             }}
             onMeasure={(width, height) => onMeasure(position.item.id, width, height)}
+            onIndexColors={(dominantColors, colorNames) =>
+              onIndexColors(position.item.id, dominantColors, colorNames)
+            }
           />
         ))}
       </div>
@@ -95,10 +102,16 @@ export function MediaGrid({
   );
 }
 
-function buildMasonry(items: MediaItem[], availableWidth: number, scrollTop: number, viewportHeight: number) {
+function buildMasonry(
+  items: MediaItem[],
+  availableWidth: number,
+  scrollTop: number,
+  viewportHeight: number,
+  targetColumns: number,
+) {
   const gutter = availableWidth >= 980 ? 36 : 32;
-  const columnWidth = clamp(Math.floor((availableWidth - gutter * 4) / 5), 124, 160);
-  const columnCount = Math.max(1, Math.floor((availableWidth + gutter) / (columnWidth + gutter)));
+  const columnCount = Math.max(1, Math.min(targetColumns, Math.floor((availableWidth + gutter) / (72 + gutter))));
+  const columnWidth = Math.max(42, Math.floor((availableWidth - gutter * (columnCount - 1)) / columnCount));
   const columns = Array.from({ length: columnCount }, () => 0);
   const positions: MasonryPosition[] = [];
 

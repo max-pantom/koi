@@ -1,41 +1,118 @@
 import { FolderPlus, Search } from "lucide-react";
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
 import { formatCount } from "../lib/media";
-import type { Folder } from "../lib/types";
+import type { Folder, SearchMode } from "../lib/types";
 import { FolderPill } from "./FolderPill";
 
 export function TopBar({
   folder,
+  folders,
+  activeFolderId,
+  gridColumns,
+  searchMode,
   total,
   isLoading,
   isSearchOpen,
   query,
   onAddFolder,
+  onSelectFolder,
+  onGridColumnsChange,
+  onSearchModeChange,
   onToggleSearch,
   onQueryChange,
   searchRef,
 }: {
   folder?: Folder;
+  folders: Folder[];
+  activeFolderId: string;
+  gridColumns: number;
+  searchMode: SearchMode;
   total: number;
   isLoading: boolean;
   isSearchOpen: boolean;
   query: string;
   onAddFolder: () => void;
+  onSelectFolder: (folderId: string) => void;
+  onGridColumnsChange: (columns: number) => void;
+  onSearchModeChange: (mode: SearchMode) => void;
   onToggleSearch: () => void;
   onQueryChange: (query: string) => void;
   searchRef: RefObject<HTMLInputElement>;
 }) {
+  const [isFolderMenuOpen, setIsFolderMenuOpen] = useState(false);
+
   return (
     <header className="toolbar">
       <div className="toolbar-left">
         <button className="icon-button" type="button" onClick={onAddFolder} title="Add folder">
           <FolderPlus size={14} />
         </button>
-        <FolderPill folder={folder} fallback="My mind" onClick={onAddFolder} />
+        <div className="folder-switch">
+          <FolderPill
+            folder={activeFolderId === "all" ? undefined : folder}
+            fallback={activeFolderId === "all" ? "All folders" : "My mind"}
+            onClick={() => setIsFolderMenuOpen((value) => !value)}
+          />
+          {isFolderMenuOpen && (
+            <div className="folder-menu">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectFolder("all");
+                  setIsFolderMenuOpen(false);
+                }}
+              >
+                All folders
+              </button>
+              {folders.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    onSelectFolder(item.id);
+                    setIsFolderMenuOpen(false);
+                  }}
+                >
+                  {item.name}
+                </button>
+              ))}
+              <button type="button" onClick={onAddFolder}>
+                Add folder
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="toolbar-right">
         <span className="count-pill">{isLoading ? "Scanning" : formatCount(total)}</span>
+        <label className="density-control" title="Grid size">
+          <input
+            type="range"
+            min="4"
+            max="16"
+            value={gridColumns}
+            onChange={(event) => onGridColumnsChange(Number(event.target.value))}
+          />
+        </label>
+        {isSearchOpen && (
+          <div className="search-mode">
+            <button
+              className={searchMode === "normal" ? "is-active" : ""}
+              type="button"
+              onClick={() => onSearchModeChange("normal")}
+            >
+              Normal
+            </button>
+            <button
+              className={searchMode === "smart" ? "is-active" : ""}
+              type="button"
+              onClick={() => onSearchModeChange("smart")}
+            >
+              Smart
+            </button>
+          </div>
+        )}
         {isSearchOpen && (
           <label className="search-box">
             <Search size={13} />

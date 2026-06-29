@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { FocusView } from "../components/FocusView";
 import { MediaGrid } from "../components/MediaGrid";
 import { TopBar } from "../components/TopBar";
@@ -14,9 +15,24 @@ export function App() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const isFocusOpen = route.view === "focus" && !!store.selectedItem;
+  const activeFolder =
+    store.activeFolderId === "all"
+      ? undefined
+      : store.folders.find((folder) => folder.id === store.activeFolderId);
 
   useEffect(() => {
     void store.loadLibrary();
+  }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen("library-changed", () => {
+      void store.loadLibrary();
+    }).then((cleanup) => {
+      unlisten = cleanup;
+    });
+
+    return () => unlisten?.();
   }, []);
 
   useEffect(() => {
@@ -40,12 +56,19 @@ export function App() {
   return (
     <main className="app">
       <TopBar
-        folder={store.folders[store.folders.length - 1]}
+        folder={activeFolder}
+        folders={store.folders}
+        activeFolderId={store.activeFolderId}
+        gridColumns={store.gridColumns}
+        searchMode={store.searchMode}
         total={store.filteredItems.length}
         isLoading={store.isLoading}
         isSearchOpen={isSearchOpen}
         query={store.query}
         onAddFolder={() => void store.addFolder()}
+        onSelectFolder={store.setActiveFolderId}
+        onGridColumnsChange={store.setGridColumns}
+        onSearchModeChange={store.setSearchMode}
         onToggleSearch={() => setIsSearchOpen((value) => !value)}
         onQueryChange={store.setQuery}
         searchRef={searchRef}
@@ -64,6 +87,10 @@ export function App() {
             setRoute({ view: "focus" });
           }}
           onMeasure={store.updateItemSize}
+          onIndexColors={(mediaId, dominantColors, colorNames) =>
+            void store.saveMediaIndex(mediaId, dominantColors, colorNames)
+          }
+          gridColumns={store.gridColumns}
         />
       </section>
 
