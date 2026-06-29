@@ -295,6 +295,61 @@ export function App() {
     },
   });
 
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen<string>("koi-menu", (event) => {
+      const id = event.payload;
+
+      if (id === "add-folder") void store.addFolder().then(() => playSound("folder_added"));
+      if (id === "rescan") void store.rescan().then(() => playSound("folder_added"));
+      if (id === "open-inbox") {
+        if (store.inboxFolderId) store.setActiveFolderId(store.inboxFolderId);
+        else setIsCommandOpen(true);
+      }
+      if (id === "reconnect-folder") resolveFolder();
+      if (id === "preferences") {
+        setIsSettingsOpen(true);
+        playSound("command_open");
+      }
+      if (id === "search") {
+        setIsSearchOpen(true);
+        playSound("search_open");
+      }
+      if (id === "command-menu") {
+        setIsCommandOpen(true);
+        playSound("command_open");
+      }
+      if (id === "grid-view") closePreview();
+      if (id === "focus-view" && store.selectedItem) {
+        setPreviewMode("focus");
+        setIsPreviewClosing(false);
+        playSound("focus_open");
+      }
+      if (id === "toggle-dark") toggleDarkMode();
+      if (id === "bigger-thumbnails") store.setGridColumns(store.gridColumns - 1);
+      if (id === "smaller-thumbnails") store.setGridColumns(store.gridColumns + 1);
+      if (id === "reset-thumbnails") store.setGridColumns(6);
+      if (id === "quick-look") {
+        if (previewMode !== "none") closePreview();
+        else if (store.selectedItem) {
+          setPreviewMode("quick");
+          setIsPreviewClosing(false);
+          playSound("focus_open");
+        }
+      }
+      if (id === "show-palette") openPalette();
+      if (id === "edit-tags") editTags();
+      if (id === "similar") setShowSimilar((value) => !value);
+      if (id === "reveal") revealSelected();
+      if (id === "copy-path") copyPath();
+      if (id === "copy-name") copyName();
+    }).then((cleanup) => {
+      unlisten = cleanup;
+    });
+
+    return () => unlisten?.();
+  });
+
   return (
     <main className={`${isFocusOpen ? "app is-previewing" : "app"}${isDark ? " is-dark" : ""}`}>
       <TopBar
