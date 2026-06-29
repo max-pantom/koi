@@ -31,7 +31,6 @@ type KeyboardActions = {
 
 export function useKeyboard(actions: KeyboardActions) {
   const lastKey = useRef("");
-  const lastMoveAt = useRef(0);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -70,10 +69,10 @@ export function useKeyboard(actions: KeyboardActions) {
         lastKey.current = "";
         return run(event, actions.jumpToTop);
       }
-      if (key === "arrowright" || key === "l" || key === "j") return move(event, lastMoveAt, () => actions.moveSelection(1));
-      if (key === "arrowleft" || key === "h" || key === "k") return move(event, lastMoveAt, () => actions.moveSelection(-1));
-      if (key === "arrowdown") return move(event, lastMoveAt, () => actions.moveSelection(6));
-      if (key === "arrowup") return move(event, lastMoveAt, () => actions.moveSelection(-6));
+      if (key === "arrowright" || key === "l" || key === "j") return run(event, () => actions.moveSelection(1));
+      if (key === "arrowleft" || key === "h" || key === "k") return run(event, () => actions.moveSelection(-1));
+      if (key === "arrowdown") return run(event, () => actions.moveSelection(6));
+      if (key === "arrowup") return run(event, () => actions.moveSelection(-6));
 
       lastKey.current = key;
       window.setTimeout(() => {
@@ -89,14 +88,4 @@ export function useKeyboard(actions: KeyboardActions) {
 function run(event: KeyboardEvent, action: () => void) {
   event.preventDefault();
   action();
-}
-
-function move(event: KeyboardEvent, lastMoveAt: { current: number }, action: () => void) {
-  const now = performance.now();
-  if (now - lastMoveAt.current < 44) {
-    event.preventDefault();
-    return;
-  }
-  lastMoveAt.current = now;
-  run(event, action);
 }

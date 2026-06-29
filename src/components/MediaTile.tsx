@@ -32,7 +32,7 @@ export function MediaTile({
       <img
         src={mediaSrc(item)}
         alt=""
-        loading="lazy"
+        loading="eager"
         decoding="async"
         draggable
         onDragStart={(event) => {

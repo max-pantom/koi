@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useMemo, useState } from "react";
 import { searchMedia } from "../lib/search";
-import type { Folder, LibraryState, MediaItem, SearchMode, ViewMode } from "../lib/types";
+import type { Folder, GridLayout, LibraryState, MediaItem, SearchMode, ViewMode } from "../lib/types";
 
 type LibraryStore = {
   folders: Folder[];
@@ -13,6 +13,7 @@ type LibraryStore = {
   searchMode: SearchMode;
   activeFolderId: string;
   gridColumns: number;
+  gridLayout: GridLayout;
   inboxFolderId: string;
   viewMode: ViewMode;
   isLoading: boolean;
@@ -30,6 +31,7 @@ type LibraryStore = {
   setSearchMode: (mode: SearchMode) => void;
   setActiveFolderId: (folderId: string) => void;
   setGridColumns: (columns: number) => void;
+  setGridLayout: (layout: GridLayout) => void;
   setInboxFolderId: (folderId: string) => void;
   setViewMode: (viewMode: ViewMode) => void;
   setSelectedIndex: (index: number) => void;
@@ -47,6 +49,9 @@ export function useLibraryStore(): LibraryStore {
   const [searchMode, setSearchMode] = useState<SearchMode>("normal");
   const [activeFolderId, setActiveFolderId] = useState(() => localStorage.getItem("koi.activeFolderId") ?? "all");
   const [gridColumns, setGridColumnsState] = useState(() => readNumber("koi.gridColumns", 6));
+  const [gridLayout, setGridLayoutState] = useState<GridLayout>(
+    () => (localStorage.getItem("koi.gridLayout") === "aligned" ? "aligned" : "packed"),
+  );
   const [inboxFolderId, setInboxFolderIdState] = useState(() => localStorage.getItem("koi.inboxFolderId") ?? "");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [isLoading, setIsLoading] = useState(false);
@@ -200,6 +205,7 @@ export function useLibraryStore(): LibraryStore {
     searchMode,
     activeFolderId,
     gridColumns,
+    gridLayout,
     inboxFolderId,
     viewMode,
     isLoading,
@@ -224,6 +230,10 @@ export function useLibraryStore(): LibraryStore {
       const next = clamp(columns, 4, 16);
       localStorage.setItem("koi.gridColumns", String(next));
       setGridColumnsState(next);
+    },
+    setGridLayout: (layout) => {
+      localStorage.setItem("koi.gridLayout", layout);
+      setGridLayoutState(layout);
     },
     setInboxFolderId: (folderId) => {
       localStorage.setItem("koi.inboxFolderId", folderId);

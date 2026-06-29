@@ -1,6 +1,6 @@
 import { Grid2X2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import type { MediaItem } from "../lib/types";
+import type { GridLayout, MediaItem } from "../lib/types";
 import { MediaTile } from "./MediaTile";
 
 type MasonryPosition = {
@@ -24,6 +24,7 @@ export function MediaGrid({
   onMeasure,
   onIndexColors,
   gridColumns,
+  gridLayout,
   onScrollChange,
 }: {
   items: MediaItem[];
@@ -37,9 +38,12 @@ export function MediaGrid({
   onMeasure: (mediaId: string, width: number, height: number) => void;
   onIndexColors: (mediaId: string, dominantColors: string[], colorNames: string[]) => void;
   gridColumns: number;
+  gridLayout: GridLayout;
   onScrollChange: (scrollTop: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<number | undefined>(undefined);
+  const saveScrollRef = useRef<number | undefined>(undefined);
   const [containerWidth, setContainerWidth] = useState(0);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
 
@@ -47,26 +51,37 @@ export function MediaGrid({
     const element = scrollRef.current;
     if (!element) return;
 
-    const update = () => {
+    const update = (saveScroll: boolean) => {
       setContainerWidth(element.clientWidth);
       setViewport({ top: element.scrollTop, height: element.clientHeight });
-      onScrollChange(element.scrollTop);
+      if (!saveScroll) return;
+      window.clearTimeout(saveScrollRef.current);
+      saveScrollRef.current = window.setTimeout(() => onScrollChange(element.scrollTop), 180);
     };
-    const resizeObserver = new ResizeObserver(update);
+    const requestUpdate = () => {
+      if (frameRef.current) return;
+      frameRef.current = window.requestAnimationFrame(() => {
+        frameRef.current = undefined;
+        update(true);
+      });
+    };
+    const resizeObserver = new ResizeObserver(() => update(false));
     resizeObserver.observe(element);
-    element.addEventListener("scroll", update, { passive: true });
-    update();
+    element.addEventListener("scroll", requestUpdate, { passive: true });
+    update(false);
     element.scrollTop = readNumber("koi.scrollTop", 0);
 
     return () => {
+      if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
+      window.clearTimeout(saveScrollRef.current);
       resizeObserver.disconnect();
-      element.removeEventListener("scroll", update);
+      element.removeEventListener("scroll", requestUpdate);
     };
   }, []);
 
   const masonry = useMemo(
-    () => buildMasonry(items, Math.max(containerWidth - 72, 0), viewport.top, viewport.height, gridColumns),
-    [containerWidth, gridColumns, items, viewport.height, viewport.top],
+    () => buildLayout(items, Math.max(containerWidth - 72, 0), viewport.top, viewport.height, gridColumns, gridLayout),
+    [containerWidth, gridColumns, gridLayout, items, viewport.height, viewport.top],
   );
 
   if (!items.length) {
@@ -109,16 +124,33 @@ export function MediaGrid({
   );
 }
 
-function buildMasonry(
+function buildLayout(
   items: MediaItem[],
   availableWidth: number,
   scrollTop: number,
   viewportHeight: number,
   targetColumns: number,
+  layout: GridLayout,
 ) {
   const gutter = availableWidth >= 980 ? 36 : 32;
   const columnCount = Math.max(1, Math.min(targetColumns, Math.floor((availableWidth + gutter) / (72 + gutter))));
   const columnWidth = Math.max(42, Math.floor((availableWidth - gutter * (columnCount - 1)) / columnCount));
+  const positions = layout === "aligned"
+    ? buildAlignedRows(items, columnCount, columnWidth, gutter)
+    : buildPackedColumns(items, columnCount, columnWidth, gutter);
+
+  const overscan = viewportHeight * 2;
+  const minY = Math.max(0, scrollTop - overscan);
+  const maxY = scrollTop + viewportHeight + overscan;
+  const visible = positions.filter((position) => position.y + position.height >= minY && position.y <= maxY);
+
+  return {
+    visible,
+    height: Math.max(...positions.map((position) => position.y + position.height), 0),
+  };
+}
+
+function buildPackedColumns(items: MediaItem[], columnCount: number, columnWidth: number, gutter: number) {
   const columns = Array.from({ length: columnCount }, () => 0);
   const positions: MasonryPosition[] = [];
 
@@ -134,15 +166,31 @@ function buildMasonry(
     columns[columnIndex] += renderedHeight + gutter;
   });
 
-  const overscan = viewportHeight * 2;
-  const minY = Math.max(0, scrollTop - overscan);
-  const maxY = scrollTop + viewportHeight + overscan;
-  const visible = positions.filter((position) => position.y + position.height >= minY && position.y <= maxY);
+  return positions;
+}
 
-  return {
-    visible,
-    height: Math.max(...columns, 0),
-  };
+function buildAlignedRows(items: MediaItem[], columnCount: number, columnWidth: number, gutter: number) {
+  const positions: MasonryPosition[] = [];
+  let y = 0;
+
+  for (let index = 0; index < items.length; index += columnCount) {
+    const row = items.slice(index, index + columnCount);
+    const rowHeights = row.map((item) => {
+      const naturalWidth = item.width || 1;
+      const naturalHeight = item.height || 1;
+      return Math.max(48, Math.round((columnWidth * naturalHeight) / naturalWidth));
+    });
+    const rowHeight = Math.max(...rowHeights, 48);
+
+    row.forEach((item, rowIndex) => {
+      const x = rowIndex * (columnWidth + gutter);
+      positions.push({ item, index: index + rowIndex, x, y, width: columnWidth, height: rowHeights[rowIndex] });
+    });
+
+    y += rowHeight + gutter;
+  }
+
+  return positions;
 }
 
 function shortestColumn(columns: number[]) {

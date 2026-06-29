@@ -43,7 +43,7 @@ pub struct LibraryState {
 }
 
 const MEDIA_EXTENSIONS: &[&str] = &[
-    "apng", "avif", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif", "tiff",
+    "apng", "avif", "aviff", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif", "tiff",
     "webp",
 ];
 

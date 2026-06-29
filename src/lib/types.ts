@@ -31,3 +31,4 @@ export type LibraryState = {
 
 export type ViewMode = "grid" | "focus";
 export type SearchMode = "normal" | "smart";
+export type GridLayout = "packed" | "aligned";

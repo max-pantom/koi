@@ -6,12 +6,11 @@ import { CommandMenu } from "../components/CommandMenu";
 import { FocusView } from "../components/FocusView";
 import { MediaContextMenu } from "../components/MediaContextMenu";
 import { MediaGrid } from "../components/MediaGrid";
-import { PalettePopover } from "../components/PalettePopover";
 import { SettingsWindow } from "../components/SettingsWindow";
 import { TagEditor } from "../components/TagEditor";
 import { TopBar } from "../components/TopBar";
 import { mediaSrc } from "../lib/media";
-import { areSoundsEnabled, playSound, setSoundsEnabled } from "../lib/sound";
+import { areSoundsEnabled, getSoundVolume, playSound, setSoundVolume, setSoundsEnabled } from "../lib/sound";
 import type { MediaItem } from "../lib/types";
 import { initialRoute } from "./routes";
 import { useKeyboard } from "../state/useKeyboard";
@@ -27,8 +26,10 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDark, setIsDark] = useState(() => localStorage.getItem("koi.theme") === "dark");
   const [soundsEnabled, setSoundsEnabledState] = useState(() => areSoundsEnabled());
+  const [soundVolume, setSoundVolumeState] = useState(() => getSoundVolume());
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: MediaItem } | undefined>();
   const [previewMode, setPreviewMode] = useState<"none" | "quick" | "focus">("none");
+  const [isPreviewClosing, setIsPreviewClosing] = useState(false);
   const [showSimilar, setShowSimilar] = useState(false);
   const [route, setRoute] = useState(initialRoute);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -76,8 +77,20 @@ export function App() {
     if (isTagEditorOpen) tagInputRef.current?.focus();
   }, [isTagEditorOpen]);
 
+  const closePreview = () => {
+    if (previewMode === "none") return;
+    setIsPreviewClosing(true);
+    playSound("focus_close");
+    window.setTimeout(() => {
+      setShowSimilar(false);
+      setIsPaletteOpen(false);
+      setPreviewMode("none");
+      setIsPreviewClosing(false);
+    }, 220);
+  };
+
   const closeLayer = () => {
-    if (previewMode !== "none") playSound("focus_close");
+    if (previewMode !== "none") closePreview();
     if (isSearchOpen) store.setQuery("");
     setIsSearchOpen(false);
     setIsCommandOpen(false);
@@ -85,8 +98,6 @@ export function App() {
     setIsPaletteOpen(false);
     setIsSettingsOpen(false);
     setContextMenu(undefined);
-    setShowSimilar(false);
-    setPreviewMode("none");
     setRoute({ view: "grid" });
   };
 
@@ -159,6 +170,7 @@ export function App() {
 
   const openPalette = () => {
     if (!store.selectedItem) return;
+    if (previewMode === "none") setPreviewMode("quick");
     setIsPaletteOpen(true);
     setContextMenu(undefined);
     playSound("command_open");
@@ -219,19 +231,19 @@ export function App() {
     toggleDarkMode,
     openSelected: () => {
       if (previewMode === "focus") {
-        setPreviewMode("none");
-        playSound("focus_close");
+        closePreview();
       } else if (store.selectedItem) {
         setPreviewMode("focus");
+        setIsPreviewClosing(false);
         playSound("focus_open");
       }
     },
     quickLook: () => {
       if (previewMode !== "none") {
-        setPreviewMode("none");
-        playSound("focus_close");
+        closePreview();
       } else if (store.selectedItem) {
         setPreviewMode("quick");
+        setIsPreviewClosing(false);
         playSound("focus_open");
       }
     },
@@ -261,6 +273,7 @@ export function App() {
     showFocus: () => {
       if (store.selectedItem) {
         setPreviewMode("focus");
+        setIsPreviewClosing(false);
         setRoute({ view: "focus" });
         playSound("focus_open");
       }
@@ -326,6 +339,7 @@ export function App() {
             void store.saveMediaIndex(mediaId, dominantColors, colorNames)
           }
           gridColumns={store.gridColumns}
+          gridLayout={store.gridLayout}
           onScrollChange={(scrollTop) => localStorage.setItem("koi.scrollTop", String(scrollTop))}
         />
       </section>
@@ -346,19 +360,19 @@ export function App() {
         <FocusView
           item={store.selectedItem}
           mode={previewMode === "quick" ? "quick" : "focus"}
+          isClosing={isPreviewClosing}
           similarItems={similarItems}
           showSimilar={showSimilar}
-          onClose={() => {
-            setShowSimilar(false);
-            setPreviewMode("none");
-            playSound("focus_close");
-          }}
+          showPalette={isPaletteOpen}
+          onCopyColor={copyHex}
+          onClose={closePreview}
           onPrevious={() => store.moveSelection(-1)}
           onNext={() => store.moveSelection(1)}
           onToggleSimilar={() => setShowSimilar((value) => !value)}
           onSelectSimilar={(item) => {
             store.setSelectedIndex(store.filteredItems.findIndex((candidate) => candidate.id === item.id));
             setPreviewMode("focus");
+            setIsPreviewClosing(false);
           }}
         />
       )}
@@ -369,22 +383,16 @@ export function App() {
         <SettingsWindow
           isDark={isDark}
           soundsEnabled={soundsEnabled}
+          soundVolume={soundVolume}
+          gridLayout={store.gridLayout}
           onToggleDark={toggleDarkMode}
           onToggleSounds={toggleSounds}
-          onClose={() => setIsSettingsOpen(false)}
-        />
-      )}
-
-      {isPaletteOpen && store.selectedItem && (
-        <PalettePopover
-          item={store.selectedItem}
-          onClose={() => setIsPaletteOpen(false)}
-          onCopyHex={(hex) => {
-            void navigator.clipboard.writeText(hex);
-            playSound("copy");
+          onSoundVolumeChange={(volume) => {
+            setSoundVolume(volume);
+            setSoundVolumeState(volume);
           }}
-          onCopyPalette={() => copyPalette()}
-          onSearchColor={searchColor}
+          onGridLayoutChange={store.setGridLayout}
+          onClose={() => setIsSettingsOpen(false)}
         />
       )}
 
@@ -418,6 +426,8 @@ export function App() {
           }}
           onShowPalette={() => {
             setContextMenu(undefined);
+            setPreviewMode("quick");
+            setIsPreviewClosing(false);
             setIsPaletteOpen(true);
           }}
           onResolveFolder={() => {
@@ -461,3 +471,7 @@ function findSimilar(items: MediaItem[], item: MediaItem) {
     .slice(0, 18)
     .map((entry) => entry.candidate);
 }
+  const copyHex = (hex: string) => {
+    void navigator.clipboard.writeText(hex);
+    playSound("copy");
+  };
