@@ -1,3 +1,4 @@
+use image::GenericImageView;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -43,8 +44,8 @@ pub struct LibraryState {
 }
 
 const MEDIA_EXTENSIONS: &[&str] = &[
-    "apng", "avif", "aviff", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif", "tiff",
-    "webp",
+    "apng", "avif", "aviff", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif",
+    "tiff", "webp",
 ];
 
 pub fn folder_from_path(path: &Path) -> Folder {
@@ -68,11 +69,20 @@ pub fn scan_folder_path(folder_path: &str, folder_id: &str) -> Result<Vec<MediaI
 
     let mut items = Vec::new();
     scan_dir(&root, &root, folder_id, &mut items)?;
-    items.sort_by(|a, b| b.modified_at.cmp(&a.modified_at).then_with(|| a.name.cmp(&b.name)));
+    items.sort_by(|a, b| {
+        b.modified_at
+            .cmp(&a.modified_at)
+            .then_with(|| a.name.cmp(&b.name))
+    });
     Ok(items)
 }
 
-fn scan_dir(root: &Path, dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(), String> {
+fn scan_dir(
+    root: &Path,
+    dir: &Path,
+    folder_id: &str,
+    items: &mut Vec<MediaItem>,
+) -> Result<(), String> {
     let entries = fs::read_dir(dir).map_err(|error| format!("Could not read folder: {error}"))?;
 
     for entry in entries.flatten() {
@@ -92,7 +102,7 @@ fn scan_dir(root: &Path, dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>
             continue;
         }
 
-        let metadata = match entry.metadata() {
+        let file_metadata = match entry.metadata() {
             Ok(metadata) => metadata,
             Err(_) => continue,
         };
@@ -102,7 +112,7 @@ fn scan_dir(root: &Path, dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>
             .unwrap_or_default()
             .to_lowercase();
         let absolute = path.to_string_lossy().to_string();
-        let (dominant_colors, color_names) = color_index(&path);
+        let image_metadata = media_metadata(&path);
 
         items.push(MediaItem {
             id: stable_id(&absolute),
@@ -111,13 +121,13 @@ fn scan_dir(root: &Path, dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>
             name,
             extension: extension.clone(),
             kind: if extension == "gif" { "gif" } else { "image" }.to_string(),
-            width: None,
-            height: None,
-            created_at: metadata.created().ok().and_then(to_secs),
-            modified_at: metadata.modified().ok().and_then(to_secs),
+            width: image_metadata.width,
+            height: image_metadata.height,
+            created_at: file_metadata.created().ok().and_then(to_secs),
+            modified_at: file_metadata.modified().ok().and_then(to_secs),
             tags: Vec::new(),
-            dominant_colors,
-            color_names,
+            dominant_colors: image_metadata.dominant_colors,
+            color_names: image_metadata.color_names,
             missing: false,
         });
     }
@@ -146,20 +156,31 @@ fn now() -> u64 {
 }
 
 fn to_secs(time: std::time::SystemTime) -> Option<u64> {
-    time.duration_since(UNIX_EPOCH).ok().map(|duration| duration.as_secs())
+    time.duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs())
 }
 
-fn color_index(path: &Path) -> (Vec<String>, Vec<String>) {
+struct MediaMetadata {
+    width: Option<u32>,
+    height: Option<u32>,
+    dominant_colors: Vec<String>,
+    color_names: Vec<String>,
+}
+
+fn media_metadata(path: &Path) -> MediaMetadata {
     let Ok(reader) = image::ImageReader::open(path) else {
-        return (Vec::new(), Vec::new());
+        return empty_metadata();
     };
     let Ok(image) = reader.decode() else {
-        return (Vec::new(), Vec::new());
+        return empty_metadata();
     };
-    let image = image.thumbnail(48, 48).to_rgb8();
-    let mut buckets: std::collections::HashMap<(u8, u8, u8), usize> = std::collections::HashMap::new();
+    let (width, height) = image.dimensions();
+    let thumbnail = image.thumbnail(48, 48).to_rgb8();
+    let mut buckets: std::collections::HashMap<(u8, u8, u8), usize> =
+        std::collections::HashMap::new();
 
-    for pixel in image.pixels().step_by(4) {
+    for pixel in thumbnail.pixels().step_by(4) {
         let [r, g, b] = pixel.0;
         let key = ((r / 32) * 32, (g / 32) * 32, (b / 32) * 32);
         *buckets.entry(key).or_insert(0) += 1;
@@ -167,15 +188,36 @@ fn color_index(path: &Path) -> (Vec<String>, Vec<String>) {
 
     let mut buckets = buckets.into_iter().collect::<Vec<_>>();
     buckets.sort_by(|a, b| b.1.cmp(&a.1));
-    let dominant = buckets.into_iter().take(5).map(|(rgb, _)| rgb).collect::<Vec<_>>();
+    let dominant = buckets
+        .into_iter()
+        .take(5)
+        .map(|(rgb, _)| rgb)
+        .collect::<Vec<_>>();
     let dominant_colors = dominant
         .iter()
         .map(|(r, g, b)| format!("#{r:02x}{g:02x}{b:02x}"))
         .collect::<Vec<_>>();
-    let mut color_names = dominant.iter().map(|rgb| nearest_color_name(*rgb)).collect::<Vec<_>>();
+    let mut color_names = dominant
+        .iter()
+        .map(|rgb| nearest_color_name(*rgb))
+        .collect::<Vec<_>>();
     color_names.dedup();
 
-    (dominant_colors, color_names)
+    MediaMetadata {
+        width: Some(width),
+        height: Some(height),
+        dominant_colors,
+        color_names,
+    }
+}
+
+fn empty_metadata() -> MediaMetadata {
+    MediaMetadata {
+        width: None,
+        height: None,
+        dominant_colors: Vec::new(),
+        color_names: Vec::new(),
+    }
 }
 
 fn nearest_color_name(rgb: (u8, u8, u8)) -> String {

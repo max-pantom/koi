@@ -276,6 +276,7 @@ button:focus-visible {
   padding: 0;
   outline: 0;
   background: transparent;
+  overflow: hidden;
   will-change: transform;
   isolation: isolate;
 }
@@ -300,7 +301,7 @@ button:focus-visible {
   position: relative;
   z-index: 1;
   width: 100%;
-  height: auto;
+  height: 100%;
   object-fit: contain;
   background: transparent;
   animation: image-fade 260ms ease both;

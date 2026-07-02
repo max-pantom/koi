@@ -12,6 +12,12 @@ type MasonryPosition = {
   height: number;
 };
 
+type MediaMeasurement = {
+  mediaId: string;
+  width: number;
+  height: number;
+};
+
 export function MediaGrid({
   items,
   selectedItem,
@@ -21,8 +27,7 @@ export function MediaGrid({
   onSelect,
   onOpen,
   onContextMenu,
-  onMeasure,
-  onIndexColors,
+  onMeasureBatch,
   gridColumns,
   gridLayout,
   onScrollChange,
@@ -35,8 +40,7 @@ export function MediaGrid({
   onSelect: (index: number) => void;
   onOpen: (index: number) => void;
   onContextMenu: (event: MouseEvent, index: number) => void;
-  onMeasure: (mediaId: string, width: number, height: number) => void;
-  onIndexColors: (mediaId: string, dominantColors: string[], colorNames: string[]) => void;
+  onMeasureBatch: (measurements: MediaMeasurement[]) => void;
   gridColumns: number;
   gridLayout: GridLayout;
   onScrollChange: (scrollTop: number) => void;
@@ -44,15 +48,28 @@ export function MediaGrid({
   const scrollRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | undefined>(undefined);
   const saveScrollRef = useRef<number | undefined>(undefined);
+  const measurementFrameRef = useRef<number | undefined>(undefined);
+  const pendingMeasurementsRef = useRef<Map<string, MediaMeasurement>>(new Map());
   const [containerWidth, setContainerWidth] = useState(0);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
+
+  const queueMeasurement = (mediaId: string, width: number, height: number) => {
+    pendingMeasurementsRef.current.set(mediaId, { mediaId, width, height });
+    if (measurementFrameRef.current) return;
+    measurementFrameRef.current = window.requestAnimationFrame(() => {
+      measurementFrameRef.current = undefined;
+      const measurements = Array.from(pendingMeasurementsRef.current.values());
+      pendingMeasurementsRef.current.clear();
+      onMeasureBatch(measurements);
+    });
+  };
 
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
 
     const update = (saveScroll: boolean) => {
-      setContainerWidth(element.clientWidth);
+      setContainerWidth(readContentWidth(element));
       setViewport({ top: element.scrollTop, height: element.clientHeight });
       if (!saveScroll) return;
       window.clearTimeout(saveScrollRef.current);
@@ -73,6 +90,7 @@ export function MediaGrid({
 
     return () => {
       if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
+      if (measurementFrameRef.current) window.cancelAnimationFrame(measurementFrameRef.current);
       window.clearTimeout(saveScrollRef.current);
       resizeObserver.disconnect();
       element.removeEventListener("scroll", requestUpdate);
@@ -80,7 +98,7 @@ export function MediaGrid({
   }, []);
 
   const masonry = useMemo(
-    () => buildLayout(items, Math.max(containerWidth - 72, 0), viewport.top, viewport.height, gridColumns, gridLayout),
+    () => buildLayout(items, containerWidth, viewport.top, viewport.height, gridColumns, gridLayout),
     [containerWidth, gridColumns, gridLayout, items, viewport.height, viewport.top],
   );
 
@@ -113,10 +131,7 @@ export function MediaGrid({
               onOpen(position.index);
             }}
             onContextMenu={(event) => onContextMenu(event, position.index)}
-            onMeasure={(width, height) => onMeasure(position.item.id, width, height)}
-            onIndexColors={(dominantColors, colorNames) =>
-              onIndexColors(position.item.id, dominantColors, colorNames)
-            }
+            onMeasure={(width, height) => queueMeasurement(position.item.id, width, height)}
           />
         ))}
       </div>
@@ -201,11 +216,14 @@ function shortestColumn(columns: number[]) {
   return index;
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
 function readNumber(key: string, fallback: number) {
   const value = Number(localStorage.getItem(key));
   return Number.isFinite(value) ? value : fallback;
+}
+
+function readContentWidth(element: HTMLElement) {
+  const styles = window.getComputedStyle(element);
+  const paddingLeft = Number.parseFloat(styles.paddingLeft) || 0;
+  const paddingRight = Number.parseFloat(styles.paddingRight) || 0;
+  return Math.max(0, element.clientWidth - paddingLeft - paddingRight);
 }

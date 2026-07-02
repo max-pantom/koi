@@ -24,6 +24,7 @@ type LibraryStore = {
   rescan: () => Promise<void>;
   removeSelected: () => void;
   updateItemSize: (mediaId: string, width: number, height: number) => void;
+  updateItemSizes: (measurements: Array<{ mediaId: string; width: number; height: number }>) => void;
   saveMediaIndex: (mediaId: string, dominantColors: string[], colorNames: string[]) => Promise<void>;
   saveTags: (mediaId: string, tags: string[]) => Promise<void>;
   reconnectFolder: (folderId: string) => Promise<void>;
@@ -160,6 +161,18 @@ export function useLibraryStore(): LibraryStore {
     );
   }, []);
 
+  const updateItemSizes = useCallback((measurements: Array<{ mediaId: string; width: number; height: number }>) => {
+    if (!measurements.length) return;
+    const sizes = new Map(measurements.map((measurement) => [measurement.mediaId, measurement]));
+    setItems((current) =>
+      current.map((item) => {
+        const size = sizes.get(item.id);
+        if (!size || (item.width === size.width && item.height === size.height)) return item;
+        return { ...item, width: size.width, height: size.height };
+      }),
+    );
+  }, []);
+
   const saveMediaIndex = useCallback(async (mediaId: string, dominantColors: string[], colorNames: string[]) => {
     setItems((current) =>
       current.map((item) => (item.id === mediaId ? { ...item, dominantColors, colorNames } : item)),
@@ -216,6 +229,7 @@ export function useLibraryStore(): LibraryStore {
     rescan,
     removeSelected,
     updateItemSize,
+    updateItemSizes,
     saveMediaIndex,
     saveTags,
     reconnectFolder,

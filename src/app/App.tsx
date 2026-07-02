@@ -389,10 +389,7 @@ export function App() {
             store.setSelectedIndex(index);
             setContextMenu({ x: event.clientX, y: event.clientY, item: store.filteredItems[index] });
           }}
-          onMeasure={store.updateItemSize}
-          onIndexColors={(mediaId, dominantColors, colorNames) =>
-            void store.saveMediaIndex(mediaId, dominantColors, colorNames)
-          }
+          onMeasureBatch={store.updateItemSizes}
           gridColumns={store.gridColumns}
           gridLayout={store.gridLayout}
           onScrollChange={(scrollTop) => localStorage.setItem("koi.scrollTop", String(scrollTop))}
