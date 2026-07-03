@@ -1,48 +1,45 @@
 name: Build macOS app
-
-on:
-  workflow_dispatch:
-  push:
-    branches:
+on:  
+  workflow_dispatch:  
+  push:    
+    branches:      
       - main
 
-jobs:
-  build-macos:
-    name: Build DMG
-    runs-on: macos-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          # 1. ADDED: Tell the toolchain to download the components for both chips
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
-
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build DMG
-        # 2. ADDED: The extra `--` tells npm to pass the target flag down to the underlying Tauri command
-        run: npm run build:dmg -- --target universal-apple-darwin
-
-      - name: Upload DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: Koi-macOS-dmg
-          # 3. CHANGED: Cargo outputs target-specific builds into a dedicated folder
-          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+jobs:  
+  build-macos:    
+    name: Build DMG    
+    runs-on: macos-latest    
+    steps:      
+      - name: Checkout        
+        uses: actions/checkout@v4      
+      
+      - name: Setup Node        
+        uses: actions/setup-node@v4        
+        with:          
+          node-version: 22          
+          cache: npm      
+      
+      - name: Setup Rust        
+        uses: dtolnay/rust-toolchain@stable        
+        with:          
+          # Downloads compilers for both Apple Silicon and Intel
+          targets: aarch64-apple-darwin, x86_64-apple-darwin      
+      
+      - name: Cache Rust        
+        uses: swatinem/rust-cache@v2        
+        with:          
+          workspaces: src-tauri      
+      
+      - name: Install dependencies        
+        run: npm ci      
+      
+      - name: Build DMG        
+        # FIX: Call Tauri directly via npx so the target flag is not dropped
+        run: npx tauri build --target universal-apple-darwin      
+      
+      - name: Upload DMG        
+        uses: actions/upload-artifact@v4        
+        with:          
+          name: Koi-macOS-dmg          
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg          
           if-no-files-found: error
