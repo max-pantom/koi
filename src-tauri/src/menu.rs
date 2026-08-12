@@ -40,7 +40,13 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &MenuItem::with_id(app, "rescan", "Rescan Folders", true, Some("Cmd+R"))?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "open-inbox", "Open Inbox", true, Some("Cmd+Shift+I"))?,
-            &MenuItem::with_id(app, "reconnect-folder", "Locate Missing Folder...", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                "reconnect-folder",
+                "Locate Missing Folder...",
+                true,
+                None::<&str>,
+            )?,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::close_window(app, None)?,
         ],
@@ -73,9 +79,27 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &MenuItem::with_id(app, "focus-view", "Focus View", true, Some("Cmd+2"))?,
             &MenuItem::with_id(app, "toggle-dark", "Toggle Dark Mode", true, Some("M"))?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "bigger-thumbnails", "Bigger Thumbnails", true, Some("Cmd+="))?,
-            &MenuItem::with_id(app, "smaller-thumbnails", "Smaller Thumbnails", true, Some("Cmd+-"))?,
-            &MenuItem::with_id(app, "reset-thumbnails", "Reset Thumbnail Size", true, Some("Cmd+0"))?,
+            &MenuItem::with_id(
+                app,
+                "bigger-thumbnails",
+                "Bigger Thumbnails",
+                true,
+                Some("Cmd+="),
+            )?,
+            &MenuItem::with_id(
+                app,
+                "smaller-thumbnails",
+                "Smaller Thumbnails",
+                true,
+                Some("Cmd+-"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                "reset-thumbnails",
+                "Reset Thumbnail Size",
+                true,
+                Some("Cmd+0"),
+            )?,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::fullscreen(app, None)?,
         ],
@@ -92,8 +116,20 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &MenuItem::with_id(app, "similar", "Show Similar", true, Some("S"))?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "reveal", "Reveal in Finder", true, Some("Cmd+Shift+R"))?,
-            &MenuItem::with_id(app, "copy-path", "Copy File Path", true, Some("Cmd+Shift+C"))?,
-            &MenuItem::with_id(app, "copy-name", "Copy Image Name", true, Some("Cmd+Option+C"))?,
+            &MenuItem::with_id(
+                app,
+                "copy-path",
+                "Copy File Path",
+                true,
+                Some("Cmd+Shift+C"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                "copy-name",
+                "Copy Image Name",
+                true,
+                Some("Cmd+Option+C"),
+            )?,
         ],
     )?;
 
@@ -111,7 +147,14 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 
     Menu::with_items(
         app,
-        &[&app_menu, &file_menu, &edit_menu, &view_menu, &image_menu, &window_menu],
+        &[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &image_menu,
+            &window_menu,
+        ],
     )
 }
 

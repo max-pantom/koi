@@ -6,6 +6,7 @@ export type Folder = {
 };
 
 export type MediaKind = "image" | "gif";
+export type CaptureType = "image" | "link";
 
 export type MediaItem = {
   id: string;
@@ -22,6 +23,12 @@ export type MediaItem = {
   dominantColors: string[];
   colorNames: string[];
   missing: boolean;
+  captureType?: CaptureType;
+  sourceUrl?: string;
+  sourcePageUrl?: string;
+  sourceTitle?: string;
+  sourceSiteName?: string;
+  capturedAt?: string;
 };
 
 export type LibraryState = {

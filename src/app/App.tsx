@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { CommandMenu } from "../components/CommandMenu";
 import { FocusView } from "../components/FocusView";
 import { MediaContextMenu } from "../components/MediaContextMenu";
@@ -34,6 +34,7 @@ export function App() {
   const [route, setRoute] = useState(initialRoute);
   const searchRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
+  const menuEventHandlerRef = useRef<(id: string) => void>(() => undefined);
 
   const isFocusOpen = previewMode !== "none" && !!store.selectedItem;
   const activeFolder =
@@ -46,27 +47,37 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    let isDisposed = false;
     let cleanup: (() => void) | undefined;
     void getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type !== "drop") return;
       const [path] = event.payload.paths;
       if (path) void store.addFolderPath(path);
     }).then((unlisten) => {
-      cleanup = unlisten;
+      if (isDisposed) unlisten();
+      else cleanup = unlisten;
     });
 
-    return () => cleanup?.();
+    return () => {
+      isDisposed = true;
+      cleanup?.();
+    };
   }, [store.addFolderPath]);
 
   useEffect(() => {
+    let isDisposed = false;
     let unlisten: (() => void) | undefined;
     void listen("library-changed", () => {
       void store.loadLibrary();
     }).then((cleanup) => {
-      unlisten = cleanup;
+      if (isDisposed) cleanup();
+      else unlisten = cleanup;
     });
 
-    return () => unlisten?.();
+    return () => {
+      isDisposed = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -127,6 +138,12 @@ export function App() {
     if (!palette) return;
     void navigator.clipboard.writeText(palette);
     playSound("copy");
+  };
+
+  const openSource = (item = store.selectedItem) => {
+    const url = item?.sourcePageUrl || item?.sourceUrl;
+    if (!url || !/^https?:\/\//i.test(url)) return;
+    void openUrl(url);
   };
 
   const copyImage = async () => {
@@ -295,11 +312,7 @@ export function App() {
     },
   });
 
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    void listen<string>("koi-menu", (event) => {
-      const id = event.payload;
-
+  menuEventHandlerRef.current = (id) => {
       if (id === "add-folder") void store.addFolder().then(() => playSound("folder_added"));
       if (id === "rescan") void store.rescan().then(() => playSound("folder_added"));
       if (id === "open-inbox") {
@@ -343,12 +356,23 @@ export function App() {
       if (id === "reveal") revealSelected();
       if (id === "copy-path") copyPath();
       if (id === "copy-name") copyName();
+  };
+
+  useEffect(() => {
+    let isDisposed = false;
+    let unlisten: (() => void) | undefined;
+    void listen<string>("koi-menu", (event) => {
+      menuEventHandlerRef.current(event.payload);
     }).then((cleanup) => {
-      unlisten = cleanup;
+      if (isDisposed) cleanup();
+      else unlisten = cleanup;
     });
 
-    return () => unlisten?.();
-  });
+    return () => {
+      isDisposed = true;
+      unlisten?.();
+    };
+  }, []);
 
   return (
     <main className={`${isFocusOpen ? "app is-previewing" : "app"}${isDark ? " is-dark" : ""}`}>
@@ -387,7 +411,11 @@ export function App() {
           onContextMenu={(event, index) => {
             event.preventDefault();
             store.setSelectedIndex(index);
-            setContextMenu({ x: event.clientX, y: event.clientY, item: store.filteredItems[index] });
+            setContextMenu({
+              x: Math.max(8, Math.min(event.clientX, window.innerWidth - 208)),
+              y: Math.max(8, Math.min(event.clientY, window.innerHeight - 286)),
+              item: store.filteredItems[index],
+            });
           }}
           onMeasureBatch={store.updateItemSizes}
           gridColumns={store.gridColumns}
@@ -426,6 +454,7 @@ export function App() {
             setPreviewMode("focus");
             setIsPreviewClosing(false);
           }}
+          onOpenSource={() => openSource()}
         />
       )}
 
@@ -484,6 +513,10 @@ export function App() {
           }}
           onResolveFolder={() => {
             resolveFolder(contextMenu.item.folderId);
+            setContextMenu(undefined);
+          }}
+          onOpenSource={() => {
+            openSource(contextMenu.item);
             setContextMenu(undefined);
           }}
         />

@@ -34,6 +34,12 @@ pub struct MediaItem {
     pub dominant_colors: Vec<String>,
     pub color_names: Vec<String>,
     pub missing: bool,
+    pub capture_type: Option<String>,
+    pub source_url: Option<String>,
+    pub source_page_url: Option<String>,
+    pub source_title: Option<String>,
+    pub source_site_name: Option<String>,
+    pub captured_at: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -68,7 +74,7 @@ pub fn scan_folder_path(folder_path: &str, folder_id: &str) -> Result<Vec<MediaI
     }
 
     let mut items = Vec::new();
-    scan_dir(&root, &root, folder_id, &mut items)?;
+    scan_dir(&root, folder_id, &mut items)?;
     items.sort_by(|a, b| {
         b.modified_at
             .cmp(&a.modified_at)
@@ -77,28 +83,27 @@ pub fn scan_folder_path(folder_path: &str, folder_id: &str) -> Result<Vec<MediaI
     Ok(items)
 }
 
-fn scan_dir(
-    root: &Path,
-    dir: &Path,
-    folder_id: &str,
-    items: &mut Vec<MediaItem>,
-) -> Result<(), String> {
+fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(), String> {
     let entries = fs::read_dir(dir).map_err(|error| format!("Could not read folder: {error}"))?;
 
     for entry in entries.flatten() {
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(_) => continue,
+        };
 
-        if name.starts_with('.') {
+        if name.starts_with('.') || file_type.is_symlink() {
             continue;
         }
 
-        if path.is_dir() {
-            scan_dir(root, &path, folder_id, items)?;
+        if file_type.is_dir() {
+            scan_dir(&path, folder_id, items)?;
             continue;
         }
 
-        if !path.is_file() || !is_media_file(&path) {
+        if !file_type.is_file() || !is_media_file(&path) {
             continue;
         }
 
@@ -113,6 +118,7 @@ fn scan_dir(
             .to_lowercase();
         let absolute = path.to_string_lossy().to_string();
         let image_metadata = media_metadata(&path);
+        let capture_metadata = capture_metadata(&path);
 
         items.push(MediaItem {
             id: stable_id(&absolute),
@@ -129,10 +135,41 @@ fn scan_dir(
             dominant_colors: image_metadata.dominant_colors,
             color_names: image_metadata.color_names,
             missing: false,
+            capture_type: capture_metadata.capture_type,
+            source_url: capture_metadata.source_url,
+            source_page_url: capture_metadata.source_page_url,
+            source_title: capture_metadata.source_title,
+            source_site_name: capture_metadata.source_site_name,
+            captured_at: capture_metadata.captured_at,
         });
     }
 
     Ok(())
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CaptureMetadata {
+    capture_type: Option<String>,
+    source_url: Option<String>,
+    source_page_url: Option<String>,
+    source_title: Option<String>,
+    source_site_name: Option<String>,
+    captured_at: Option<String>,
+}
+
+fn capture_metadata(media_path: &Path) -> CaptureMetadata {
+    let primary = media_path.with_extension("koi.json");
+    let appended = PathBuf::from(format!("{}.koi.json", media_path.to_string_lossy()));
+
+    [primary, appended]
+        .into_iter()
+        .find_map(|path| {
+            fs::read_to_string(path)
+                .ok()
+                .and_then(|content| serde_json::from_str::<CaptureMetadata>(&content).ok())
+        })
+        .unwrap_or_default()
 }
 
 fn is_media_file(path: &Path) -> bool {
@@ -201,7 +238,8 @@ fn media_metadata(path: &Path) -> MediaMetadata {
         .iter()
         .map(|rgb| nearest_color_name(*rgb))
         .collect::<Vec<_>>();
-    color_names.dedup();
+    let mut seen_color_names = std::collections::HashSet::new();
+    color_names.retain(|name| seen_color_names.insert(name.clone()));
 
     MediaMetadata {
         width: Some(width),
@@ -243,4 +281,45 @@ fn nearest_color_name(rgb: (u8, u8, u8)) -> String {
         })
         .map(|(name, _)| name.to_string())
         .unwrap_or_else(|| "gray".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::capture_metadata;
+    use std::{fs, time::SystemTime};
+
+    #[test]
+    fn reads_koi_capture_sidecar_for_media_stem() {
+        let unique = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("time should move forward")
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!("koi-scanner-{unique}"));
+        fs::create_dir_all(&directory).expect("temporary directory should be created");
+        let media_path = directory.join("reference.jpg");
+        let sidecar_path = directory.join("reference.koi.json");
+        fs::write(&media_path, []).expect("placeholder media should be written");
+        fs::write(
+            sidecar_path,
+            r#"{
+              "captureType": "link",
+              "sourceUrl": "https://example.com/card.jpg",
+              "sourcePageUrl": "https://example.com/article",
+              "sourceTitle": "Example article",
+              "sourceSiteName": "Example",
+              "capturedAt": "2026-08-12T08:00:00.000Z"
+            }"#,
+        )
+        .expect("sidecar should be written");
+
+        let metadata = capture_metadata(&media_path);
+        assert_eq!(metadata.capture_type.as_deref(), Some("link"));
+        assert_eq!(
+            metadata.source_page_url.as_deref(),
+            Some("https://example.com/article")
+        );
+        assert_eq!(metadata.source_title.as_deref(), Some("Example article"));
+
+        fs::remove_dir_all(directory).expect("temporary directory should be removed");
+    }
 }

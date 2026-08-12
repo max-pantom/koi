@@ -31,9 +31,12 @@ type KeyboardActions = {
 
 export function useKeyboard(actions: KeyboardActions) {
   const lastKey = useRef("");
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const actions = actionsRef.current;
       const target = event.target as HTMLElement | null;
       const isTyping = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA";
       const key = event.key.toLowerCase();
@@ -82,7 +85,7 @@ export function useKeyboard(actions: KeyboardActions) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [actions]);
+  }, []);
 }
 
 function run(event: KeyboardEvent, action: () => void) {

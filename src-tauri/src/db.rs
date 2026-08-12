@@ -1,6 +1,9 @@
 use crate::scanner::{Folder, LibraryState, MediaItem};
 use rusqlite::{params, Connection};
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tauri::{AppHandle, Manager};
 
 pub fn get_library(app: &AppHandle) -> Result<LibraryState, String> {
@@ -13,7 +16,8 @@ pub fn get_library(app: &AppHandle) -> Result<LibraryState, String> {
 pub fn save_folder(app: &AppHandle, folder: &Folder) -> Result<(), String> {
     let conn = connect(app)?;
     conn.execute(
-        "insert or replace into folders (id, name, path, added_at) values (?1, ?2, ?3, ?4)",
+        "insert into folders (id, name, path, added_at) values (?1, ?2, ?3, ?4)
+         on conflict(id) do update set name = excluded.name, path = excluded.path",
         params![folder.id, folder.name, folder.path, folder.added_at],
     )
     .map_err(|error| error.to_string())?;
@@ -25,24 +29,43 @@ pub fn save_media(app: &AppHandle, items: &[MediaItem]) -> Result<(), String> {
     let tx = conn.transaction().map_err(|error| error.to_string())?;
 
     for item in items {
-        let existing_tags: Option<String> = tx
-            .query_row("select tags from media where id = ?1", params![item.id], |row| row.get(0))
-            .ok();
-        let tags = existing_tags.unwrap_or_else(|| serialize_tags(&item.tags));
-        let existing_colors: Option<(String, String)> = tx
+        let existing_index: Option<(String, String, String)> = tx
             .query_row(
-                "select dominant_colors, color_names from media where id = ?1",
-                params![item.id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                "select tags, dominant_colors, color_names from media where id = ?1 or path = ?2 limit 1",
+                params![item.id, item.path],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .ok();
-        let (dominant_colors, color_names) = existing_colors
-            .unwrap_or_else(|| (serialize_tags(&item.dominant_colors), serialize_tags(&item.color_names)));
+        let (tags, dominant_colors, color_names) = existing_index.unwrap_or_else(|| {
+            (
+                serialize_tags(&item.tags),
+                serialize_tags(&item.dominant_colors),
+                serialize_tags(&item.color_names),
+            )
+        });
 
         tx.execute(
-            "insert or replace into media
-            (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names)
-            values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            "insert into media
+            (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
+             capture_type, source_url, source_page_url, source_title, source_site_name, captured_at)
+            values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+            on conflict do update set
+              id = excluded.id,
+              folder_id = excluded.folder_id,
+              path = excluded.path,
+              name = excluded.name,
+              extension = excluded.extension,
+              kind = excluded.kind,
+              width = excluded.width,
+              height = excluded.height,
+              created_at = excluded.created_at,
+              modified_at = excluded.modified_at,
+              capture_type = excluded.capture_type,
+              source_url = excluded.source_url,
+              source_page_url = excluded.source_page_url,
+              source_title = excluded.source_title,
+              source_site_name = excluded.source_site_name,
+              captured_at = excluded.captured_at",
             params![
                 item.id,
                 item.folder_id,
@@ -56,7 +79,13 @@ pub fn save_media(app: &AppHandle, items: &[MediaItem]) -> Result<(), String> {
                 item.modified_at,
                 tags,
                 dominant_colors,
-                color_names
+                color_names,
+                item.capture_type,
+                item.source_url,
+                item.source_page_url,
+                item.source_title,
+                item.source_site_name,
+                item.captured_at
             ],
         )
         .map_err(|error| error.to_string())?;
@@ -85,13 +114,21 @@ pub fn save_media_index(
     let conn = connect(app)?;
     conn.execute(
         "update media set dominant_colors = ?1, color_names = ?2 where id = ?3",
-        params![serialize_tags(dominant_colors), serialize_tags(color_names), media_id],
+        params![
+            serialize_tags(dominant_colors),
+            serialize_tags(color_names),
+            media_id
+        ],
     )
     .map_err(|error| error.to_string())?;
     Ok(())
 }
 
-pub fn reconnect_folder(app: &AppHandle, folder_id: &str, new_folder_path: &Path) -> Result<(), String> {
+pub fn reconnect_folder(
+    app: &AppHandle,
+    folder_id: &str,
+    new_folder_path: &Path,
+) -> Result<(), String> {
     if !new_folder_path.is_dir() {
         return Err("Choose the moved folder.".into());
     }
@@ -99,7 +136,11 @@ pub fn reconnect_folder(app: &AppHandle, folder_id: &str, new_folder_path: &Path
     let mut conn = connect(app)?;
     let tx = conn.transaction().map_err(|error| error.to_string())?;
     let old_path: String = tx
-        .query_row("select path from folders where id = ?1", params![folder_id], |row| row.get(0))
+        .query_row(
+            "select path from folders where id = ?1",
+            params![folder_id],
+            |row| row.get(0),
+        )
         .map_err(|_| "That folder is not in Koi anymore.".to_string())?;
     let new_path = new_folder_path.to_string_lossy().to_string();
     let new_name = new_folder_path
@@ -118,14 +159,18 @@ pub fn reconnect_folder(app: &AppHandle, folder_id: &str, new_folder_path: &Path
         .prepare("select id, path from media where folder_id = ?1")
         .map_err(|error| error.to_string())?;
     let rows = stmt
-        .query_map(params![folder_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .query_map(params![folder_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())?;
     drop(stmt);
 
     for (media_id, media_path) in rows {
-        let relative = Path::new(&media_path).strip_prefix(Path::new(&old_path)).ok();
+        let relative = Path::new(&media_path)
+            .strip_prefix(Path::new(&old_path))
+            .ok();
         if let Some(relative) = relative {
             let repaired = new_folder_path.join(relative).to_string_lossy().to_string();
             tx.execute(
@@ -182,12 +227,28 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         ",
     )
     .map_err(|error| error.to_string())?;
-    add_column(conn, "media", "dominant_colors", "text not null default '[]'")?;
+    add_column(
+        conn,
+        "media",
+        "dominant_colors",
+        "text not null default '[]'",
+    )?;
     add_column(conn, "media", "color_names", "text not null default '[]'")?;
+    add_column(conn, "media", "capture_type", "text")?;
+    add_column(conn, "media", "source_url", "text")?;
+    add_column(conn, "media", "source_page_url", "text")?;
+    add_column(conn, "media", "source_title", "text")?;
+    add_column(conn, "media", "source_site_name", "text")?;
+    add_column(conn, "media", "captured_at", "text")?;
     Ok(())
 }
 
-fn add_column(conn: &Connection, table: &str, column: &str, definition: &str) -> Result<(), String> {
+fn add_column(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> Result<(), String> {
     let sql = format!("alter table {table} add column {column} {definition}");
     match conn.execute(&sql, []) {
         Ok(_) => Ok(()),
@@ -211,13 +272,15 @@ fn read_folders(conn: &Connection) -> Result<Vec<Folder>, String> {
         })
         .map_err(|error| error.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())
 }
 
 fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
     let mut stmt = conn
         .prepare(
-            "select id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names
+            "select id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
+             capture_type, source_url, source_page_url, source_title, source_site_name, captured_at
             from media
             order by coalesce(modified_at, created_at, 0) desc, name asc",
         )
@@ -243,11 +306,18 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
                 dominant_colors: deserialize_tags(&dominant_colors),
                 color_names: deserialize_tags(&color_names),
                 missing: !Path::new(&path).is_file(),
+                capture_type: row.get(13)?,
+                source_url: row.get(14)?,
+                source_page_url: row.get(15)?,
+                source_title: row.get(16)?,
+                source_site_name: row.get(17)?,
+                captured_at: row.get(18)?,
             })
         })
         .map_err(|error| error.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())
 }
 
 fn serialize_tags(tags: &[String]) -> String {

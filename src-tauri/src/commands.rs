@@ -2,8 +2,21 @@ use crate::{
     db,
     scanner::{self, Folder, LibraryState, MediaItem},
 };
-use std::path::PathBuf;
-use tauri::AppHandle;
+use std::{fs, path::PathBuf};
+use tauri::{AppHandle, Manager};
+
+pub fn ensure_capture_folder(app: &AppHandle) -> Result<(), String> {
+    let folder_path = app
+        .path()
+        .download_dir()
+        .map_err(|error| format!("Could not find the Downloads folder: {error}"))?
+        .join("Koi Captures");
+    fs::create_dir_all(&folder_path).map_err(|error| error.to_string())?;
+    let folder = scanner::folder_from_path(&folder_path);
+    db::save_folder(app, &folder)?;
+    let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
+    db::save_media(app, &items)
+}
 
 #[tauri::command]
 pub fn add_folder(app: AppHandle) -> Result<Folder, String> {
@@ -15,7 +28,7 @@ pub fn add_folder(app: AppHandle) -> Result<Folder, String> {
     db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
     db::save_media(&app, &items)?;
-    crate::watcher::watch_folder(app, folder_path);
+    crate::watcher::watch_folder(app, folder.id.clone(), folder_path);
     Ok(folder)
 }
 
@@ -26,17 +39,24 @@ pub fn add_folder_path(app: AppHandle, folder_path: String) -> Result<Folder, St
     db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
     db::save_media(&app, &items)?;
-    crate::watcher::watch_folder(app, folder_path);
+    crate::watcher::watch_folder(app, folder.id.clone(), folder_path);
     Ok(folder)
 }
 
 #[tauri::command]
-pub fn scan_folder(app: AppHandle, folder_path: String) -> Result<Vec<MediaItem>, String> {
-    let folder = scanner::folder_from_path(&PathBuf::from(&folder_path));
+pub fn scan_folder(
+    app: AppHandle,
+    folder_path: String,
+    folder_id: Option<String>,
+) -> Result<Vec<MediaItem>, String> {
+    let mut folder = scanner::folder_from_path(&PathBuf::from(&folder_path));
+    if let Some(folder_id) = folder_id {
+        folder.id = folder_id;
+    }
     db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder_path, &folder.id)?;
     db::save_media(&app, &items)?;
-    crate::watcher::watch_folder(app, PathBuf::from(folder_path));
+    crate::watcher::watch_folder(app, folder.id, PathBuf::from(folder_path));
     Ok(items)
 }
 
@@ -76,7 +96,7 @@ pub fn reconnect_folder(app: AppHandle, folder_id: String) -> Result<(), String>
         .pick_folder()
         .ok_or_else(|| "No folder selected.".to_string())?;
     db::reconnect_folder(&app, &folder_id, &folder_path)?;
-    crate::watcher::watch_folder(app, folder_path);
+    crate::watcher::watch_folder(app, folder_id, folder_path);
     Ok(())
 }
 

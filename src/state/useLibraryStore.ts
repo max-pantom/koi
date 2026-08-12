@@ -46,8 +46,8 @@ export function useLibraryStore(): LibraryStore {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [items, setItems] = useState<MediaItem[]>([]);
   const [selectedIndex, setSelectedIndexState] = useState(() => readNumber("koi.selectedIndex", 0));
-  const [query, setQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<SearchMode>("normal");
+  const [query, setQueryState] = useState("");
+  const [searchMode, setSearchModeState] = useState<SearchMode>("normal");
   const [activeFolderId, setActiveFolderId] = useState(() => localStorage.getItem("koi.activeFolderId") ?? "all");
   const [gridColumns, setGridColumnsState] = useState(() => readNumber("koi.gridColumns", 6));
   const [gridLayout, setGridLayoutState] = useState<GridLayout>(
@@ -122,7 +122,7 @@ export function useLibraryStore(): LibraryStore {
     setError("");
     try {
       for (const folder of folders) {
-        await invoke<MediaItem[]>("scan_folder", { folderPath: folder.path });
+        await invoke<MediaItem[]>("scan_folder", { folderPath: folder.path, folderId: folder.id });
       }
       setLibrary(await invoke<LibraryState>("get_library"));
     } catch (err) {
@@ -233,10 +233,19 @@ export function useLibraryStore(): LibraryStore {
     saveMediaIndex,
     saveTags,
     reconnectFolder,
-    setQuery,
-    setSearchMode,
+    setQuery: (nextQuery) => {
+      setQueryState(nextQuery);
+      localStorage.setItem("koi.selectedIndex", "0");
+      setSelectedIndexState(0);
+    },
+    setSearchMode: (mode) => {
+      setSearchModeState(mode);
+      localStorage.setItem("koi.selectedIndex", "0");
+      setSelectedIndexState(0);
+    },
     setActiveFolderId: (folderId) => {
       localStorage.setItem("koi.activeFolderId", folderId);
+      localStorage.setItem("koi.selectedIndex", "0");
       setActiveFolderId(folderId);
       setSelectedIndexState(0);
     },
@@ -256,8 +265,15 @@ export function useLibraryStore(): LibraryStore {
     setViewMode,
     setSelectedIndex,
     moveSelection,
-    jumpToTop: () => setSelectedIndexState(0),
-    jumpToBottom: () => setSelectedIndexState(Math.max(filteredItems.length - 1, 0)),
+    jumpToTop: () => {
+      localStorage.setItem("koi.selectedIndex", "0");
+      setSelectedIndexState(0);
+    },
+    jumpToBottom: () => {
+      const next = Math.max(filteredItems.length - 1, 0);
+      localStorage.setItem("koi.selectedIndex", String(next));
+      setSelectedIndexState(next);
+    },
     clearError: () => setError(""),
   };
 }

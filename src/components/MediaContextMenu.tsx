@@ -1,4 +1,4 @@
-import { Copy, FolderSearch, Palette, Tag, X } from "lucide-react";
+import { Copy, ExternalLink, FolderSearch, Palette, Tag, X } from "lucide-react";
 import type { MediaItem } from "../lib/types";
 
 export function MediaContextMenu({
@@ -13,6 +13,7 @@ export function MediaContextMenu({
   onEditTags,
   onShowPalette,
   onResolveFolder,
+  onOpenSource,
 }: {
   item: MediaItem;
   x: number;
@@ -25,6 +26,7 @@ export function MediaContextMenu({
   onEditTags: () => void;
   onShowPalette: () => void;
   onResolveFolder: () => void;
+  onOpenSource: () => void;
 }) {
   return (
     <div className="context-layer" onPointerDown={onClose}>
@@ -43,6 +45,12 @@ export function MediaContextMenu({
           <FolderSearch size={14} />
           Reveal in Finder
         </button>
+        {item.sourcePageUrl && (
+          <button type="button" onClick={onOpenSource}>
+            <ExternalLink size={14} />
+            Open original website
+          </button>
+        )}
         <button type="button" onClick={onCopyPath}>
           <Copy size={14} />
           Copy path

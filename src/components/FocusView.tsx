@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, X } from "lucide-react";
 import { useRef, type WheelEvent } from "react";
 import { mediaSrc } from "../lib/media";
 import type { MediaItem } from "../lib/types";
@@ -16,6 +16,7 @@ export function FocusView({
   onNext,
   onToggleSimilar,
   onSelectSimilar,
+  onOpenSource,
 }: {
   item: MediaItem;
   mode: "quick" | "focus";
@@ -29,6 +30,7 @@ export function FocusView({
   onNext: () => void;
   onToggleSimilar: () => void;
   onSelectSimilar: (item: MediaItem) => void;
+  onOpenSource: () => void;
 }) {
   const lastWheelAt = useRef(0);
 
@@ -46,24 +48,33 @@ export function FocusView({
       className={`preview-layer preview-${mode}${isClosing ? " is-closing" : ""}`}
       role="dialog"
       aria-modal="true"
+      aria-label={item.sourceTitle || item.name}
       onPointerDown={onClose}
       onWheel={onWheel}
     >
       <img className="preview-blur" src={mediaSrc(item)} alt="" draggable={false} />
-      <button className="preview-close" type="button" onClick={onClose} title="Close">
-        <X size={17} />
+      <button
+        className="preview-close"
+        type="button"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={onClose}
+        aria-label="Close preview"
+        title="Close"
+      >
+        <X size={17} aria-hidden="true" />
       </button>
       <button
         className="preview-nav left"
         type="button"
         onPointerDown={(event) => event.stopPropagation()}
         onClick={onPrevious}
+        aria-label="Previous image"
         title="Previous"
       >
-        <ArrowLeft size={18} />
+        <ArrowLeft size={18} aria-hidden="true" />
       </button>
       <div className="preview-media">
-        <img src={mediaSrc(item)} alt="" draggable={false} onPointerDown={(event) => event.stopPropagation()} />
+        <img src={mediaSrc(item)} alt={item.sourceTitle || item.name} draggable={false} onPointerDown={(event) => event.stopPropagation()} />
         {showPalette && (
           <div className="focus-palette" onPointerDown={(event) => event.stopPropagation()}>
             {item.dominantColors.slice(0, 5).map((hex) => (
@@ -72,6 +83,7 @@ export function FocusView({
                 type="button"
                 style={{ background: hex }}
                 onClick={() => onCopyColor(hex)}
+                aria-label={`Copy color ${hex}`}
                 title={`Copy ${hex}`}
               />
             ))}
@@ -83,9 +95,10 @@ export function FocusView({
         type="button"
         onPointerDown={(event) => event.stopPropagation()}
         onClick={onNext}
+        aria-label="Next image"
         title="Next"
       >
-        <ArrowRight size={18} />
+        <ArrowRight size={18} aria-hidden="true" />
       </button>
       <button
         className="similar-toggle"
@@ -95,11 +108,31 @@ export function FocusView({
       >
         Similar
       </button>
-      <div className="preview-caption">{item.name}</div>
+      <div className="preview-caption">
+        <span>{item.sourceTitle || item.name}</span>
+        {item.sourcePageUrl && (
+          <button
+            className="preview-source"
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={onOpenSource}
+            title="Open original website"
+          >
+            <ExternalLink size={12} aria-hidden="true" />
+            {item.sourceSiteName || "Open source"}
+          </button>
+        )}
+      </div>
       {showSimilar && (
         <div className="similar-strip" onPointerDown={(event) => event.stopPropagation()}>
           {similarItems.map((similar) => (
-            <button key={similar.id} type="button" onClick={() => onSelectSimilar(similar)} title={similar.name}>
+            <button
+              key={similar.id}
+              type="button"
+              onClick={() => onSelectSimilar(similar)}
+              aria-label={`Open ${similar.sourceTitle || similar.name}`}
+              title={similar.sourceTitle || similar.name}
+            >
               <img src={mediaSrc(similar)} alt="" draggable={false} />
             </button>
           ))}

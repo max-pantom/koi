@@ -24,7 +24,8 @@ export function MediaTile({
       type="button"
       onClick={onSelect}
       onContextMenu={onContextMenu}
-      title={item.name}
+      aria-label={item.sourceTitle || item.name}
+      title={item.sourceTitle || item.name}
     >
       <img
         src={mediaSrc(item)}

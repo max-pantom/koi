@@ -23,6 +23,7 @@ fn main() {
             commands::get_library
         ])
         .setup(|app| {
+            let _ = commands::ensure_capture_folder(app.handle());
             watcher::start_existing_watchers(app.handle().clone());
             Ok(())
         })
