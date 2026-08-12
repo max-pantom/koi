@@ -98,7 +98,7 @@ function buildFields(item: MediaItem, mode: SearchMode, folderNames: Map<string,
     { field: "name", value: normalize(item.name), weight: 10 },
     { field: "tag", value: normalize(item.tags.join(" ")), weight: 9 },
     { field: "folder", value: normalize(folderNames.get(item.folderId) ?? ""), weight: 6 },
-    { field: "site", value: normalize([item.sourceTitle, item.sourceSiteName, hostname(item.sourcePageUrl), hostname(item.sourceUrl)].filter(Boolean).join(" ")), weight: 7 },
+    { field: "site", value: normalize([item.sourceTitle, item.sourcePageTitle, item.sourceSiteName, item.sourceDescription, hostname(item.sourceLinkUrl), hostname(item.sourcePageUrl), hostname(item.sourceCanonicalUrl), hostname(item.sourceFinalUrl), hostname(item.sourceUrl)].filter(Boolean).join(" ")), weight: 7 },
     { field: "type", value: normalize([item.kind, item.captureType, item.extension].filter(Boolean).join(" ")), weight: 5 },
   ];
 
@@ -106,7 +106,7 @@ function buildFields(item: MediaItem, mode: SearchMode, folderNames: Map<string,
     fields.push(
       { field: "color", value: normalize([...item.colorNames, ...item.dominantColors].join(" ")), weight: 7 },
       { field: "name", value: normalize(item.path), weight: 2 },
-      { field: "site", value: normalize([item.sourcePageUrl, item.sourceUrl].filter(Boolean).join(" ")), weight: 4 },
+      { field: "site", value: normalize([item.sourceDescription, item.sourceLinkUrl, item.sourcePageUrl, item.sourceCanonicalUrl, item.sourceFinalUrl, item.sourceUrl].filter(Boolean).join(" ")), weight: 4 },
     );
   }
 

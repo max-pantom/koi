@@ -1,4 +1,5 @@
 import { downloadImageWithFallback, downloadTextFile } from "./downloads.js";
+import { buildCaptureMetadata } from "./capture-metadata.js";
 import { routeCaptureToKoi } from "./koi-bridge.js";
 
 const CAPTURE_DIRECTORY = "Koi Captures";
@@ -24,10 +25,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   const capture = info.menuItemId === IMAGE_MENU_ID
     ? {
         type: "KOI_CAPTURE_IMAGE",
+        tabId: tab?.id,
         imageUrl: info.srcUrl,
         imageTitle: tab?.title || "Image",
+        sourceLinkUrl: info.linkUrl || "",
         page: {
           pageUrl: info.pageUrl || tab?.url || "",
+          canonicalUrl: "",
           title: tab?.title || "",
           siteName: hostname(info.pageUrl || tab?.url),
           images: [],
@@ -36,12 +40,15 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     : info.menuItemId === PAGE_MENU_ID
       ? {
           type: "KOI_CAPTURE_PAGE",
+          tabId: tab?.id,
           page: {
             pageUrl: info.linkUrl || info.pageUrl || tab?.url || "",
+            canonicalUrl: "",
             title: tab?.title || "",
             siteName: hostname(info.linkUrl || info.pageUrl || tab?.url),
             images: [],
           },
+          sourceLinkUrl: info.linkUrl || "",
         }
       : undefined;
 
@@ -70,6 +77,8 @@ async function handleContextCapture(capture) {
       imageUrl: message.imageUrl,
       page: message.page,
       fallbackTitle: message.imageTitle,
+      sourceLinkUrl: message.sourceLinkUrl,
+      tabId: message.tabId,
       destinationFolderId: message.destinationFolderId,
     });
   }
@@ -77,6 +86,8 @@ async function handleContextCapture(capture) {
     pageUrl: message.page.pageUrl,
     page: message.page,
     fallbackTitle: message.page.title,
+    tabId: message.tabId,
+    sourceLinkUrl: message.sourceLinkUrl,
     destinationFolderId: message.destinationFolderId,
   });
 }
@@ -89,15 +100,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         imageUrl: message.imageUrl,
         pageUrl: message.page?.pageUrl,
         fallbackTitle: message.imageTitle || message.page?.title,
-        tabId: sender.tab?.id,
+        tabId: message.tabId ?? sender.tab?.id,
         page: message.page,
+        sourceLinkUrl: message.sourceLinkUrl,
         destinationFolderId: message.destinationFolderId,
       })
     : capturePage({
         pageUrl: message.page?.pageUrl,
         fallbackTitle: message.page?.title,
-        tabId: sender.tab?.id,
+        tabId: message.tabId ?? sender.tab?.id,
         page: message.page,
+        sourceLinkUrl: message.sourceLinkUrl,
         destinationFolderId: message.destinationFolderId,
       });
 
@@ -107,20 +120,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-async function captureImage({ imageUrl, pageUrl, fallbackTitle, tabId, page, destinationFolderId }) {
+async function captureImage({
+  imageUrl,
+  pageUrl,
+  fallbackTitle,
+  tabId,
+  page,
+  sourceLinkUrl,
+  destinationFolderId,
+}) {
   if (!isDownloadableUrl(imageUrl)) throw new Error("This image uses a browser-only URL and cannot be downloaded.");
-  const metadata = page || await readPage(tabId, { pageUrl, title: fallbackTitle });
+  const metadata = typeof tabId === "number"
+    ? await readPage(tabId, { ...page, pageUrl: page?.pageUrl || pageUrl, title: page?.title || fallbackTitle })
+    : page || { pageUrl, title: fallbackTitle, images: [] };
   return downloadCapture({
     captureType: "image",
     imageUrl,
     page: metadata,
     title: fallbackTitle || metadata.title || fileStemFromUrl(imageUrl),
+    sourceLinkUrl,
     destinationFolderId,
   });
 }
 
-async function capturePage({ pageUrl, fallbackTitle, tabId, page, destinationFolderId }) {
-  let metadata = page || await readPage(tabId, { pageUrl, title: fallbackTitle });
+async function capturePage({ pageUrl, fallbackTitle, tabId, page, sourceLinkUrl, destinationFolderId }) {
+  let metadata = typeof tabId === "number"
+    ? await readPage(tabId, { ...page, pageUrl: page?.pageUrl || pageUrl, title: page?.title || fallbackTitle })
+    : page || { pageUrl, title: fallbackTitle, images: [] };
   const previewUrl = metadata.ogImage || metadata.images?.[0]?.url;
   if (pageUrl && (
     (metadata.pageUrl && normalisePageUrl(pageUrl) !== normalisePageUrl(metadata.pageUrl))
@@ -135,8 +161,9 @@ async function capturePage({ pageUrl, fallbackTitle, tabId, page, destinationFol
   return downloadCapture({
     captureType: "link",
     imageUrl: resolvedPreviewUrl,
-    page: { ...metadata, pageUrl: pageUrl || metadata.pageUrl },
+    page: metadata,
     title: metadata.title || fallbackTitle || hostname(pageUrl),
+    sourceLinkUrl,
     destinationFolderId,
   });
 }
@@ -158,6 +185,7 @@ async function readRemotePage(pageUrl, fallbackTitle) {
     const resolvedPageUrl = response.url || pageUrl;
     return {
       pageUrl: resolvedPageUrl,
+      canonicalUrl: resolveUrl(extractLinkHref(html, "canonical"), resolvedPageUrl),
       title,
       description,
       siteName,
@@ -167,6 +195,16 @@ async function readRemotePage(pageUrl, fallbackTitle) {
   } catch (error) {
     throw new Error(`Unable to read that website's preview: ${readableError(error)}`);
   }
+}
+
+function extractLinkHref(html, rel) {
+  for (const tag of html.match(/<link\s+[^>]*>/gi) || []) {
+    const attributes = readAttributes(tag);
+    if ((attributes.rel || "").toLowerCase().split(/\s+/).includes(rel) && attributes.href) {
+      return decodeEntities(attributes.href);
+    }
+  }
+  return "";
 }
 
 function extractMeta(html, names) {
@@ -219,31 +257,30 @@ function normalisePageUrl(value) {
   }
 }
 
-async function downloadCapture({ captureType, imageUrl, page, title, destinationFolderId }) {
+async function downloadCapture({ captureType, imageUrl, page, title, sourceLinkUrl, destinationFolderId }) {
   const extension = await inferExtension(imageUrl);
   const stem = captureStem(title, page.siteName || hostname(page.pageUrl));
   const imageFilename = `${CAPTURE_DIRECTORY}/${stem}.${extension}`;
   const sidecarFilename = `${CAPTURE_DIRECTORY}/${stem}.koi.json`;
   const capturedAt = new Date().toISOString();
-  const metadata = {
-    schemaVersion: 1,
-    captureType,
-    sourceUrl: imageUrl,
-    sourcePageUrl: page.pageUrl || "",
-    sourceTitle: page.title || title || "",
-    sourceSiteName: page.siteName || hostname(page.pageUrl),
-    sourceDescription: page.description || "",
-    capturedAt,
-    imageFilename: `${stem}.${extension}`,
-    destinationFolderId: destinationFolderId || "",
-  };
-
   const imageDownload = await downloadImageWithFallback({
     downloads: chrome.downloads,
     fetchImpl: fetch,
     url: imageUrl,
     filename: imageFilename,
     sourcePageUrl: page.pageUrl,
+  });
+  const [completedDownload] = await chrome.downloads.search({ id: imageDownload.id }).catch(() => []);
+  const metadata = buildCaptureMetadata({
+    captureType,
+    imageUrl,
+    finalUrl: isDownloadableUrl(completedDownload?.finalUrl) ? completedDownload.finalUrl : imageUrl,
+    page,
+    title,
+    sourceLinkUrl,
+    capturedAt,
+    imageFilename: `${stem}.${extension}`,
+    destinationFolderId,
   });
 
   let metadataDownloadId;
@@ -297,7 +334,7 @@ async function readPage(tabId, fallback) {
   if (typeof tabId !== "number") return { ...fallback, images: [] };
   try {
     const page = await chrome.tabs.sendMessage(tabId, { type: "KOI_GET_PAGE" });
-    return { ...fallback, ...page };
+    return { ...fallback, ...page, images: page.images || fallback.images || [] };
   } catch {
     return { ...fallback, siteName: hostname(fallback.pageUrl), images: [] };
   }

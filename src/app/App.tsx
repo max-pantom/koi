@@ -147,7 +147,7 @@ export function App() {
   };
 
   const openSource = (item = store.selectedItem) => {
-    const url = item?.sourcePageUrl || item?.sourceUrl;
+    const url = item?.sourceLinkUrl || item?.sourcePageUrl || item?.sourceCanonicalUrl || item?.sourceFinalUrl || item?.sourceUrl;
     if (!url || !/^https?:\/\//i.test(url)) return;
     void openUrl(url);
   };

@@ -36,9 +36,14 @@ pub struct MediaItem {
     pub missing: bool,
     pub capture_type: Option<String>,
     pub source_url: Option<String>,
+    pub source_final_url: Option<String>,
     pub source_page_url: Option<String>,
+    pub source_canonical_url: Option<String>,
+    pub source_link_url: Option<String>,
     pub source_title: Option<String>,
+    pub source_page_title: Option<String>,
     pub source_site_name: Option<String>,
+    pub source_description: Option<String>,
     pub captured_at: Option<String>,
 }
 
@@ -136,9 +141,14 @@ fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(
             missing: false,
             capture_type: capture_metadata.capture_type,
             source_url: capture_metadata.source_url,
+            source_final_url: capture_metadata.source_final_url,
             source_page_url: capture_metadata.source_page_url,
+            source_canonical_url: capture_metadata.source_canonical_url,
+            source_link_url: capture_metadata.source_link_url,
             source_title: capture_metadata.source_title,
+            source_page_title: capture_metadata.source_page_title,
             source_site_name: capture_metadata.source_site_name,
+            source_description: capture_metadata.source_description,
             captured_at: capture_metadata.captured_at,
         });
     }
@@ -151,9 +161,14 @@ fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(
 struct CaptureMetadata {
     capture_type: Option<String>,
     source_url: Option<String>,
+    source_final_url: Option<String>,
     source_page_url: Option<String>,
+    source_canonical_url: Option<String>,
+    source_link_url: Option<String>,
     source_title: Option<String>,
+    source_page_title: Option<String>,
     source_site_name: Option<String>,
+    source_description: Option<String>,
     captured_at: Option<String>,
 }
 
@@ -303,9 +318,14 @@ mod tests {
             r#"{
               "captureType": "link",
               "sourceUrl": "https://example.com/card.jpg",
+              "sourceFinalUrl": "https://cdn.example.com/card.webp",
               "sourcePageUrl": "https://example.com/article",
+              "sourceCanonicalUrl": "https://example.com/articles/example",
+              "sourceLinkUrl": "https://example.com/products/card",
               "sourceTitle": "Example article",
+              "sourcePageTitle": "Example page",
               "sourceSiteName": "Example",
+              "sourceDescription": "A captured example page.",
               "capturedAt": "2026-08-12T08:00:00.000Z"
             }"#,
         )
@@ -318,6 +338,18 @@ mod tests {
             Some("https://example.com/article")
         );
         assert_eq!(metadata.source_title.as_deref(), Some("Example article"));
+        assert_eq!(
+            metadata.source_link_url.as_deref(),
+            Some("https://example.com/products/card")
+        );
+        assert_eq!(
+            metadata.source_final_url.as_deref(),
+            Some("https://cdn.example.com/card.webp")
+        );
+        assert_eq!(
+            metadata.source_description.as_deref(),
+            Some("A captured example page.")
+        );
 
         fs::remove_dir_all(directory).expect("temporary directory should be removed");
     }

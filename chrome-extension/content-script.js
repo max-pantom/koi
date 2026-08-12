@@ -16,7 +16,8 @@ function metaContent(...selectors) {
 }
 
 function pageMetadata() {
-  const pageUrl = document.querySelector('link[rel="canonical"]')?.href || location.href;
+  const pageUrl = location.href;
+  const canonicalUrl = absoluteUrl(document.querySelector('link[rel="canonical"]')?.getAttribute("href"));
   const title = metaContent('meta[property="og:title"]', 'meta[name="twitter:title"]') || document.title;
   const description = metaContent(
     'meta[property="og:description"]',
@@ -36,6 +37,8 @@ function pageMetadata() {
     .map((image) => ({
       url: absoluteUrl(image.currentSrc || image.src),
       alt: image.alt.trim(),
+      title: image.title.trim(),
+      linkUrl: absoluteUrl(image.closest("a[href]")?.getAttribute("href")),
       width: image.naturalWidth,
       height: image.naturalHeight,
     }))
@@ -46,6 +49,7 @@ function pageMetadata() {
 
   return {
     pageUrl,
+    canonicalUrl,
     title,
     description,
     siteName,

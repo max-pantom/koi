@@ -25,9 +25,14 @@ export type MediaItem = {
   missing: boolean;
   captureType?: CaptureType;
   sourceUrl?: string;
+  sourceFinalUrl?: string;
   sourcePageUrl?: string;
+  sourceCanonicalUrl?: string;
+  sourceLinkUrl?: string;
   sourceTitle?: string;
+  sourcePageTitle?: string;
   sourceSiteName?: string;
+  sourceDescription?: string;
   capturedAt?: string;
 };
 

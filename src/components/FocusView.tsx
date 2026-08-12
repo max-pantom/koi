@@ -33,6 +33,12 @@ export function FocusView({
   onOpenSource: () => void;
 }) {
   const lastWheelAt = useRef(0);
+  const sourceUrl = item.sourceLinkUrl
+    || item.sourcePageUrl
+    || item.sourceCanonicalUrl
+    || item.sourceFinalUrl
+    || item.sourceUrl;
+  const sourceHost = sourceHostname(sourceUrl) || item.sourceSiteName || "Open source";
 
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -110,16 +116,17 @@ export function FocusView({
       </button>
       <div className="preview-caption">
         <span>{item.sourceTitle || item.name}</span>
-        {item.sourcePageUrl && (
+        {sourceUrl && (
           <button
             className="preview-source"
             type="button"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onOpenSource}
-            title="Open original website"
+            aria-label={`Open source${item.sourceSiteName ? ` on ${item.sourceSiteName}` : ""}`}
+            title={sourceUrl}
           >
             <ExternalLink size={12} aria-hidden="true" />
-            {item.sourceSiteName || "Open source"}
+            {sourceHost}
           </button>
         )}
       </div>
@@ -140,4 +147,13 @@ export function FocusView({
       )}
     </div>
   );
+}
+
+function sourceHostname(value?: string) {
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }

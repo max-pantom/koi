@@ -106,7 +106,7 @@ export function MediaGrid({
     return (
       <div className="grid-wrap" ref={scrollRef} data-tauri-drag-region>
         <button className="quiet-empty" type="button" onClick={onAddFolder}>
-          <Grid2X2 size={17} />
+          <Grid2X2 size={17} aria-hidden="true" />
           <span>{isLoading ? "Scanning" : hasFolders ? "No images found" : "Add a folder"}</span>
         </button>
       </div>
@@ -147,7 +147,7 @@ function buildLayout(
   targetColumns: number,
   layout: GridLayout,
 ) {
-  const gutter = availableWidth >= 980 ? 36 : 32;
+  const gutter = availableWidth >= 980 ? 16 : 14;
   const columnCount = Math.max(1, Math.min(targetColumns, Math.floor((availableWidth + gutter) / (72 + gutter))));
   const columnWidth = Math.max(42, Math.floor((availableWidth - gutter * (columnCount - 1)) / columnCount));
   const positions = layout === "aligned"

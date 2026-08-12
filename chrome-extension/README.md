@@ -25,3 +25,5 @@ A capture is a pair with the same filename stem:
 ```
 
 Koi reads the sidecar during its normal folder scan. Websites that do not publish an Open Graph image fall back to the largest usable page image. Browser-internal pages, protected media, `blob:` URLs, canvases, and DRM content may not be downloadable.
+
+Sidecars use schema version 2 and keep provenance values distinct: the requested image URL, Chrome's final post-redirect URL, the live page URL, the page's canonical URL, and the enclosing destination link when the image is clickable. Page title, image title, site name, description, capture time, and selected Koi folder are stored alongside them.

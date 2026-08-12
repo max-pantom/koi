@@ -162,7 +162,8 @@ async function saveImage(image, button) {
   await runCapture(button, {
     type: "KOI_CAPTURE_IMAGE",
     imageUrl: image.url,
-    imageTitle: image.alt || page.title,
+    imageTitle: image.alt || image.title || page.title,
+    sourceLinkUrl: image.linkUrl || "",
     page,
     destinationFolderId: selectedDestinationFolderId(),
   });

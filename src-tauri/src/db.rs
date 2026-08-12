@@ -274,9 +274,14 @@ fn migrate(conn: &Connection) -> Result<(), String> {
     add_column(conn, "media", "color_names", "text not null default '[]'")?;
     add_column(conn, "media", "capture_type", "text")?;
     add_column(conn, "media", "source_url", "text")?;
+    add_column(conn, "media", "source_final_url", "text")?;
     add_column(conn, "media", "source_page_url", "text")?;
+    add_column(conn, "media", "source_canonical_url", "text")?;
+    add_column(conn, "media", "source_link_url", "text")?;
     add_column(conn, "media", "source_title", "text")?;
+    add_column(conn, "media", "source_page_title", "text")?;
     add_column(conn, "media", "source_site_name", "text")?;
+    add_column(conn, "media", "source_description", "text")?;
     add_column(conn, "media", "captured_at", "text")?;
     Ok(())
 }
@@ -318,7 +323,8 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
     let mut stmt = conn
         .prepare(
             "select id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
-             capture_type, source_url, source_page_url, source_title, source_site_name, captured_at
+             capture_type, source_url, source_final_url, source_page_url, source_canonical_url, source_link_url,
+             source_title, source_page_title, source_site_name, source_description, captured_at
             from media
             order by coalesce(modified_at, created_at, 0) desc, name asc",
         )
@@ -346,10 +352,15 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
                 missing: !Path::new(&path).is_file(),
                 capture_type: row.get(13)?,
                 source_url: row.get(14)?,
-                source_page_url: row.get(15)?,
-                source_title: row.get(16)?,
-                source_site_name: row.get(17)?,
-                captured_at: row.get(18)?,
+                source_final_url: row.get(15)?,
+                source_page_url: row.get(16)?,
+                source_canonical_url: row.get(17)?,
+                source_link_url: row.get(18)?,
+                source_title: row.get(19)?,
+                source_page_title: row.get(20)?,
+                source_site_name: row.get(21)?,
+                source_description: row.get(22)?,
+                captured_at: row.get(23)?,
             })
         })
         .map_err(|error| error.to_string())?;
@@ -377,8 +388,9 @@ fn upsert_media(
     tx.execute(
         "insert into media
         (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
-         capture_type, source_url, source_page_url, source_title, source_site_name, captured_at)
-        values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+         capture_type, source_url, source_final_url, source_page_url, source_canonical_url, source_link_url,
+         source_title, source_page_title, source_site_name, source_description, captured_at)
+        values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)
         on conflict do update set
           id = excluded.id,
           folder_id = excluded.folder_id,
@@ -392,9 +404,14 @@ fn upsert_media(
           modified_at = excluded.modified_at,
           capture_type = excluded.capture_type,
           source_url = excluded.source_url,
+          source_final_url = excluded.source_final_url,
           source_page_url = excluded.source_page_url,
+          source_canonical_url = excluded.source_canonical_url,
+          source_link_url = excluded.source_link_url,
           source_title = excluded.source_title,
+          source_page_title = excluded.source_page_title,
           source_site_name = excluded.source_site_name,
+          source_description = excluded.source_description,
           captured_at = excluded.captured_at",
         params![
             item.id,
@@ -412,9 +429,14 @@ fn upsert_media(
             color_names,
             item.capture_type,
             item.source_url,
+            item.source_final_url,
             item.source_page_url,
+            item.source_canonical_url,
+            item.source_link_url,
             item.source_title,
+            item.source_page_title,
             item.source_site_name,
+            item.source_description,
             item.captured_at
         ],
     )

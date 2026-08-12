@@ -38,42 +38,42 @@ export function MediaContextMenu({
         <div className="context-title">
           <span>{item.name}</span>
           <button type="button" onClick={onClose} title="Close">
-            <X size={13} />
+            <X size={13} aria-hidden="true" />
           </button>
         </div>
         <button type="button" onClick={onReveal}>
-          <FolderSearch size={14} />
+          <FolderSearch size={14} aria-hidden="true" />
           Reveal in Finder
         </button>
-        {item.sourcePageUrl && (
+        {(item.sourceLinkUrl || item.sourcePageUrl || item.sourceCanonicalUrl || item.sourceFinalUrl || item.sourceUrl) && (
           <button type="button" onClick={onOpenSource}>
-            <ExternalLink size={14} />
+            <ExternalLink size={14} aria-hidden="true" />
             Open original website
           </button>
         )}
         <button type="button" onClick={onCopyPath}>
-          <Copy size={14} />
+          <Copy size={14} aria-hidden="true" />
           Copy path
         </button>
         <button type="button" onClick={onCopyName}>
-          <Copy size={14} />
+          <Copy size={14} aria-hidden="true" />
           Copy name
         </button>
         <button type="button" onClick={onEditTags}>
-          <Tag size={14} />
+          <Tag size={14} aria-hidden="true" />
           Tags
         </button>
         <button type="button" onClick={onShowPalette}>
-          <Palette size={14} />
+          <Palette size={14} aria-hidden="true" />
           Palette
         </button>
         <button type="button" onClick={onCopyPalette}>
-          <Copy size={14} />
+          <Copy size={14} aria-hidden="true" />
           Copy palette
         </button>
         {item.missing && (
           <button type="button" onClick={onResolveFolder}>
-            <FolderSearch size={14} />
+            <FolderSearch size={14} aria-hidden="true" />
             Locate folder
           </button>
         )}
