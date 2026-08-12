@@ -86,13 +86,13 @@ pub fn scan_folder_path(folder_path: &str, folder_id: &str) -> Result<Vec<MediaI
 fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(), String> {
     let entries = fs::read_dir(dir).map_err(|error| format!("Could not read folder: {error}"))?;
 
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("Could not read folder entry: {error}"))?;
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
-        let file_type = match entry.file_type() {
-            Ok(file_type) => file_type,
-            Err(_) => continue,
-        };
+        let file_type = entry
+            .file_type()
+            .map_err(|error| format!("Could not inspect {}: {error}", path.display()))?;
 
         if name.starts_with('.') || file_type.is_symlink() {
             continue;
@@ -107,10 +107,9 @@ fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(
             continue;
         }
 
-        let file_metadata = match entry.metadata() {
-            Ok(metadata) => metadata,
-            Err(_) => continue,
-        };
+        let file_metadata = entry
+            .metadata()
+            .map_err(|error| format!("Could not inspect {}: {error}", path.display()))?;
         let extension = path
             .extension()
             .and_then(|ext| ext.to_str())

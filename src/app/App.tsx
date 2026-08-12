@@ -426,6 +426,7 @@ export function App() {
       />
 
       <section className="workspace">
+        <div className="workspace-titlebar-drag" data-tauri-drag-region aria-hidden="true" />
         <MediaGrid
           items={store.filteredItems}
           selectedItem={store.selectedItem}
@@ -452,6 +453,8 @@ export function App() {
           gridLayout={store.gridLayout}
           onScrollChange={(scrollTop) => localStorage.setItem("koi.scrollTop", String(scrollTop))}
         />
+        <div className="grid-edge-blur is-top" aria-hidden="true" />
+        <div className="grid-edge-blur is-bottom" aria-hidden="true" />
       </section>
 
       {store.error && (

@@ -138,11 +138,28 @@ button:focus:not(:focus-visible) {
   padding: 0 8px 0 78px;
 }
 
+.sidebar-titlebar-brand {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--sidebar-text);
+  background: var(--sidebar-field);
+  box-shadow: inset 0 0 0 1px var(--sidebar-divider);
+  pointer-events: none;
+}
+
 .sidebar-titlebar-mark {
-  width: 18px;
-  height: 18px;
+  width: 13px;
+  height: 13px;
   object-fit: contain;
   pointer-events: none;
+}
+
+.app.is-dark .sidebar-titlebar-mark {
+  filter: invert(1);
 }
 
 .sidebar-count {
@@ -476,9 +493,11 @@ button:focus:not(:focus-visible) {
 }
 
 .workspace {
+  position: relative;
   width: calc(100vw - var(--sidebar-width));
   height: 100vh;
   margin-inline-start: var(--sidebar-width);
+  overflow: hidden;
   transition: width 160ms ease-out, margin-inline-start 160ms ease-out;
 }
 
@@ -486,16 +505,50 @@ button:focus:not(:focus-visible) {
   --sidebar-width: 0px;
 }
 
+.workspace-titlebar-drag {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 5;
+  height: 40px;
+}
+
+.app.is-sidebar-collapsed .workspace-titlebar-drag {
+  inset-inline-start: 116px;
+}
+
 .grid-wrap {
   position: relative;
   height: 100%;
   overflow: auto;
-  padding: 30px 32px 48px;
+  padding: 44px 32px 52px;
+  overscroll-behavior: contain;
 }
 
 .mood-grid {
   position: relative;
   min-height: 100%;
+}
+
+.grid-edge-blur {
+  position: absolute;
+  inset-inline: 0;
+  z-index: 4;
+  height: 34px;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+
+.grid-edge-blur.is-top {
+  top: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 18%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 18%, transparent 100%);
+}
+
+.grid-edge-blur.is-bottom {
+  bottom: 0;
+  -webkit-mask-image: linear-gradient(to top, #000 18%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 18%, transparent 100%);
 }
 
 .tile {

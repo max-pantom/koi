@@ -1,10 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <g>
-    <path fill="#F0644F" fill-rule="evenodd" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#F2A34B" fill-rule="evenodd" transform="rotate(72 128 128)" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#A8B85E" fill-rule="evenodd" transform="rotate(144 128 128)" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#4FA99B" fill-rule="evenodd" transform="rotate(216 128 128)" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#7B70D6" fill-rule="evenodd" transform="rotate(288 128 128)" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#292824" fill-rule="evenodd" d="M128 103a25 25 0 1 1 0 50 25 25 0 1 1 0-50Zm0 17a8 8 0 1 0 0 16 8 8 0 1 0 0-16Z"/>
+  <g fill="none" stroke="#292927" stroke-width="19" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
+    <path transform="rotate(72 128 128)" d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
+    <path transform="rotate(144 128 128)" d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
+    <path transform="rotate(216 128 128)" d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
+    <path transform="rotate(288 128 128)" d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
   </g>
 </svg>

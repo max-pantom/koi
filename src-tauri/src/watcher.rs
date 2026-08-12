@@ -94,7 +94,7 @@ fn handle_change(app: AppHandle, folder_id: String, folder_path: PathBuf) {
 
         let folder_path_string = folder_path.to_string_lossy().to_string();
         if let Ok(items) = scanner::scan_folder_path(&folder_path_string, &folder_id) {
-            let _ = db::save_media(&app, &items);
+            let _ = db::sync_folder_media(&app, &folder_id, &items);
             let _ = app.emit("library-changed", ());
         }
     });

@@ -82,7 +82,9 @@ export function Sidebar({
   return (
     <aside className="sidebar" id="library-sidebar" aria-label="Koi library">
       <div className="sidebar-titlebar" data-tauri-drag-region>
-        <img className="sidebar-titlebar-mark" src={koiMark} alt="" aria-hidden="true" />
+        <span className="sidebar-titlebar-brand" aria-hidden="true">
+          <img className="sidebar-titlebar-mark" src={koiMark} alt="" />
+        </span>
         <output
           className={isLoading ? "sidebar-count is-loading" : "sidebar-count"}
           aria-label={isLoading ? "Scanning library" : `${total.toLocaleString()} ${total === 1 ? "item" : "items"}`}

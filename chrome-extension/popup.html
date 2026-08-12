@@ -16,6 +16,35 @@
         <img class="mark" src="brand-mark.svg" alt="" aria-hidden="true" />
       </header>
 
+      <section class="destination-card" aria-labelledby="destination-title">
+        <div class="section-head">
+          <h2 id="destination-title">Save location</h2>
+          <span id="bridge-state">Connecting to Koi…</span>
+        </div>
+        <label class="field" for="destination-folder">
+          <span>Folder</span>
+          <select id="destination-folder" disabled>
+            <option value="">Koi Captures</option>
+          </select>
+        </label>
+        <details class="capture-settings">
+          <summary>Capture settings</summary>
+          <label class="check-row" for="ask-every-time">
+            <input id="ask-every-time" type="checkbox" checked />
+            <span>
+              <strong>Ask where to save</strong>
+              <small>Choose a Koi folder in this popup before each capture.</small>
+            </span>
+          </label>
+          <label class="field quick-save-field" for="quick-save-folder">
+            <span>Quick Save folder</span>
+            <select id="quick-save-folder" disabled>
+              <option value="">Koi Captures</option>
+            </select>
+          </label>
+        </details>
+      </section>
+
       <section id="page-card" class="page-card" aria-labelledby="page-title">
         <div class="preview-wrap">
           <img id="page-preview" alt="" hidden />

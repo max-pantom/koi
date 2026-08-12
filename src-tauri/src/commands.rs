@@ -16,7 +16,7 @@ pub fn ensure_capture_folder(app: AppHandle) -> Result<Folder, String> {
     let folder = scanner::folder_from_path(&folder_path);
     db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
-    db::save_media(&app, &items)?;
+    db::sync_folder_media(&app, &folder.id, &items)?;
     crate::watcher::watch_folder(app, folder.id.clone(), folder_path);
     Ok(folder)
 }
@@ -30,7 +30,7 @@ pub fn add_folder(app: AppHandle) -> Result<Folder, String> {
     let folder = scanner::folder_from_path(&folder_path);
     db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
-    db::save_media(&app, &items)?;
+    db::sync_folder_media(&app, &folder.id, &items)?;
     crate::watcher::watch_folder(app, folder.id.clone(), folder_path);
     Ok(folder)
 }
@@ -41,7 +41,7 @@ pub fn add_folder_path(app: AppHandle, folder_path: String) -> Result<Folder, St
     let folder = scanner::folder_from_path(&folder_path);
     db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
-    db::save_media(&app, &items)?;
+    db::sync_folder_media(&app, &folder.id, &items)?;
     crate::watcher::watch_folder(app, folder.id.clone(), folder_path);
     Ok(folder)
 }
@@ -58,7 +58,7 @@ pub fn scan_folder(
     }
     db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder_path, &folder.id)?;
-    db::save_media(&app, &items)?;
+    db::sync_folder_media(&app, &folder.id, &items)?;
     crate::watcher::watch_folder(app, folder.id, PathBuf::from(folder_path));
     Ok(items)
 }
@@ -105,5 +105,18 @@ pub fn reconnect_folder(app: AppHandle, folder_id: String) -> Result<(), String>
 
 #[tauri::command]
 pub fn get_library(app: AppHandle) -> Result<LibraryState, String> {
+    let library = db::get_library(&app)?;
+    if !library.items.iter().any(|item| item.missing) {
+        return Ok(library);
+    }
+
+    // A missing item first gets a recursive lookup through every registered
+    // folder. Only a successful complete scan is allowed to prune the index;
+    // unreadable or disconnected folders keep their records for reconnecting.
+    for folder in &library.folders {
+        if let Ok(items) = scanner::scan_folder_path(&folder.path, &folder.id) {
+            db::sync_folder_media(&app, &folder.id, &items)?;
+        }
+    }
     db::get_library(&app)
 }

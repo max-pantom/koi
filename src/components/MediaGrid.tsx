@@ -104,7 +104,7 @@ export function MediaGrid({
 
   if (!items.length) {
     return (
-      <div className="grid-wrap" ref={scrollRef}>
+      <div className="grid-wrap" ref={scrollRef} data-tauri-drag-region>
         <button className="quiet-empty" type="button" onClick={onAddFolder}>
           <Grid2X2 size={17} />
           <span>{isLoading ? "Scanning" : hasFolders ? "No images found" : "Add a folder"}</span>
@@ -114,8 +114,8 @@ export function MediaGrid({
   }
 
   return (
-    <div className="grid-wrap" ref={scrollRef}>
-      <div className="mood-grid" style={{ height: masonry.height }}>
+    <div className="grid-wrap" ref={scrollRef} data-tauri-drag-region>
+      <div className="mood-grid" style={{ height: masonry.height }} data-tauri-drag-region>
         {masonry.visible.map((position) => (
           <MediaTile
             key={position.item.id}

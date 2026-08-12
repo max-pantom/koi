@@ -1,6 +1,7 @@
 use crate::scanner::{Folder, LibraryState, MediaItem};
 use rusqlite::{params, Connection};
 use std::{
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
@@ -24,71 +25,84 @@ pub fn save_folder(app: &AppHandle, folder: &Folder) -> Result<(), String> {
     Ok(())
 }
 
-pub fn save_media(app: &AppHandle, items: &[MediaItem]) -> Result<(), String> {
+/// Replace one folder's index after a complete, successful scan.
+///
+/// The scanner returns an error when any directory cannot be read, so pruning
+/// here never turns a disconnected or temporarily unavailable folder into a
+/// mass deletion. When a file moved within the folder, its tags and generated
+/// colour index follow it when the filename still identifies it uniquely.
+pub fn sync_folder_media(
+    app: &AppHandle,
+    folder_id: &str,
+    items: &[MediaItem],
+) -> Result<(), String> {
     let mut conn = connect(app)?;
     let tx = conn.transaction().map_err(|error| error.to_string())?;
+    let existing = {
+        let mut stmt = tx
+            .prepare(
+                "select id, path, name, tags, dominant_colors, color_names
+                 from media where folder_id = ?1",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = stmt
+            .query_map(params![folder_id], |row| {
+                Ok(ExistingMedia {
+                    id: row.get(0)?,
+                    path: row.get(1)?,
+                    name: row.get(2)?,
+                    tags: row.get(3)?,
+                    dominant_colors: row.get(4)?,
+                    color_names: row.get(5)?,
+                })
+            })
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        rows
+    };
+    let scanned_paths = items
+        .iter()
+        .map(|item| item.path.as_str())
+        .collect::<HashSet<_>>();
 
     for item in items {
-        let existing_index: Option<(String, String, String)> = tx
-            .query_row(
-                "select tags, dominant_colors, color_names from media where id = ?1 or path = ?2 limit 1",
-                params![item.id, item.path],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .ok();
-        let (tags, dominant_colors, color_names) = existing_index.unwrap_or_else(|| {
-            (
-                serialize_tags(&item.tags),
-                serialize_tags(&item.dominant_colors),
-                serialize_tags(&item.color_names),
-            )
-        });
+        let existing_index = existing
+            .iter()
+            .find(|candidate| candidate.id == item.id || candidate.path == item.path)
+            .or_else(|| {
+                let mut matches = existing.iter().filter(|candidate| {
+                    candidate.name == item.name
+                        && !Path::new(&candidate.path).is_file()
+                        && !scanned_paths.contains(candidate.path.as_str())
+                });
+                let first = matches.next()?;
+                matches.next().is_none().then_some(first)
+            });
+        let (tags, dominant_colors, color_names) = existing_index
+            .map(|candidate| {
+                (
+                    candidate.tags.clone(),
+                    candidate.dominant_colors.clone(),
+                    candidate.color_names.clone(),
+                )
+            })
+            .unwrap_or_else(|| {
+                (
+                    serialize_tags(&item.tags),
+                    serialize_tags(&item.dominant_colors),
+                    serialize_tags(&item.color_names),
+                )
+            });
 
-        tx.execute(
-            "insert into media
-            (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
-             capture_type, source_url, source_page_url, source_title, source_site_name, captured_at)
-            values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
-            on conflict do update set
-              id = excluded.id,
-              folder_id = excluded.folder_id,
-              path = excluded.path,
-              name = excluded.name,
-              extension = excluded.extension,
-              kind = excluded.kind,
-              width = excluded.width,
-              height = excluded.height,
-              created_at = excluded.created_at,
-              modified_at = excluded.modified_at,
-              capture_type = excluded.capture_type,
-              source_url = excluded.source_url,
-              source_page_url = excluded.source_page_url,
-              source_title = excluded.source_title,
-              source_site_name = excluded.source_site_name,
-              captured_at = excluded.captured_at",
-            params![
-                item.id,
-                item.folder_id,
-                item.path,
-                item.name,
-                item.extension,
-                item.kind,
-                item.width,
-                item.height,
-                item.created_at,
-                item.modified_at,
-                tags,
-                dominant_colors,
-                color_names,
-                item.capture_type,
-                item.source_url,
-                item.source_page_url,
-                item.source_title,
-                item.source_site_name,
-                item.captured_at
-            ],
-        )
-        .map_err(|error| error.to_string())?;
+        upsert_media(&tx, item, tags, dominant_colors, color_names)?;
+    }
+
+    for candidate in existing {
+        if !scanned_paths.contains(candidate.path.as_str()) {
+            tx.execute("delete from media where id = ?1", params![candidate.id])
+                .map_err(|error| error.to_string())?;
+        }
     }
 
     tx.commit().map_err(|error| error.to_string())?;
@@ -183,6 +197,30 @@ pub fn reconnect_folder(
 
     tx.commit().map_err(|error| error.to_string())?;
     Ok(())
+}
+
+pub fn folder_by_id(app: &AppHandle, folder_id: &str) -> Result<Option<Folder>, String> {
+    let conn = connect(app)?;
+    conn.query_row(
+        "select id, name, path, added_at from folders where id = ?1",
+        params![folder_id],
+        |row| {
+            Ok(Folder {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                path: row.get(2)?,
+                added_at: row.get(3)?,
+            })
+        },
+    )
+    .map(Some)
+    .or_else(|error| {
+        if matches!(error, rusqlite::Error::QueryReturnedNoRows) {
+            Ok(None)
+        } else {
+            Err(error.to_string())
+        }
+    })
 }
 
 fn connect(app: &AppHandle) -> Result<Connection, String> {
@@ -318,6 +356,70 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())
+}
+
+struct ExistingMedia {
+    id: String,
+    path: String,
+    name: String,
+    tags: String,
+    dominant_colors: String,
+    color_names: String,
+}
+
+fn upsert_media(
+    tx: &rusqlite::Transaction<'_>,
+    item: &MediaItem,
+    tags: String,
+    dominant_colors: String,
+    color_names: String,
+) -> Result<(), String> {
+    tx.execute(
+        "insert into media
+        (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
+         capture_type, source_url, source_page_url, source_title, source_site_name, captured_at)
+        values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
+        on conflict do update set
+          id = excluded.id,
+          folder_id = excluded.folder_id,
+          path = excluded.path,
+          name = excluded.name,
+          extension = excluded.extension,
+          kind = excluded.kind,
+          width = excluded.width,
+          height = excluded.height,
+          created_at = excluded.created_at,
+          modified_at = excluded.modified_at,
+          capture_type = excluded.capture_type,
+          source_url = excluded.source_url,
+          source_page_url = excluded.source_page_url,
+          source_title = excluded.source_title,
+          source_site_name = excluded.source_site_name,
+          captured_at = excluded.captured_at",
+        params![
+            item.id,
+            item.folder_id,
+            item.path,
+            item.name,
+            item.extension,
+            item.kind,
+            item.width,
+            item.height,
+            item.created_at,
+            item.modified_at,
+            tags,
+            dominant_colors,
+            color_names,
+            item.capture_type,
+            item.source_url,
+            item.source_page_url,
+            item.source_title,
+            item.source_site_name,
+            item.captured_at
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 fn serialize_tags(tags: &[String]) -> String {

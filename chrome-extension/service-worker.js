@@ -1,4 +1,5 @@
 import { downloadImageWithFallback, downloadTextFile } from "./downloads.js";
+import { routeCaptureToKoi } from "./koi-bridge.js";
 
 const CAPTURE_DIRECTORY = "Koi Captures";
 const IMAGE_MENU_ID = "koi-save-image";
@@ -20,19 +21,65 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  const task = info.menuItemId === IMAGE_MENU_ID
-    ? captureImage({
+  const capture = info.menuItemId === IMAGE_MENU_ID
+    ? {
+        type: "KOI_CAPTURE_IMAGE",
         imageUrl: info.srcUrl,
-        pageUrl: info.pageUrl,
-        fallbackTitle: tab?.title,
-        tabId: tab?.id,
-      })
+        imageTitle: tab?.title || "Image",
+        page: {
+          pageUrl: info.pageUrl || tab?.url || "",
+          title: tab?.title || "",
+          siteName: hostname(info.pageUrl || tab?.url),
+          images: [],
+        },
+      }
     : info.menuItemId === PAGE_MENU_ID
-      ? capturePage({ pageUrl: info.linkUrl || info.pageUrl, fallbackTitle: tab?.title, tabId: tab?.id })
+      ? {
+          type: "KOI_CAPTURE_PAGE",
+          page: {
+            pageUrl: info.linkUrl || info.pageUrl || tab?.url || "",
+            title: tab?.title || "",
+            siteName: hostname(info.linkUrl || info.pageUrl || tab?.url),
+            images: [],
+          },
+        }
       : undefined;
+
+  const task = capture ? handleContextCapture(capture) : undefined;
 
   task?.catch((error) => console.error("Koi capture failed", error));
 });
+
+async function handleContextCapture(capture) {
+  const settings = await chrome.storage.local.get(["askEveryTime", "quickSaveFolderId"]);
+  if (settings.askEveryTime !== false) {
+    await chrome.storage.local.set({ pendingContextCapture: capture });
+    await chrome.windows.create({
+      url: chrome.runtime.getURL("popup.html?context=1"),
+      type: "popup",
+      width: 390,
+      height: 690,
+      focused: true,
+    });
+    return;
+  }
+
+  const message = { ...capture, destinationFolderId: settings.quickSaveFolderId || "" };
+  if (message.type === "KOI_CAPTURE_IMAGE") {
+    return captureImage({
+      imageUrl: message.imageUrl,
+      page: message.page,
+      fallbackTitle: message.imageTitle,
+      destinationFolderId: message.destinationFolderId,
+    });
+  }
+  return capturePage({
+    pageUrl: message.page.pageUrl,
+    page: message.page,
+    fallbackTitle: message.page.title,
+    destinationFolderId: message.destinationFolderId,
+  });
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type !== "KOI_CAPTURE_IMAGE" && message?.type !== "KOI_CAPTURE_PAGE") return false;
@@ -44,12 +91,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         fallbackTitle: message.imageTitle || message.page?.title,
         tabId: sender.tab?.id,
         page: message.page,
+        destinationFolderId: message.destinationFolderId,
       })
     : capturePage({
         pageUrl: message.page?.pageUrl,
         fallbackTitle: message.page?.title,
         tabId: sender.tab?.id,
         page: message.page,
+        destinationFolderId: message.destinationFolderId,
       });
 
   task
@@ -58,7 +107,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-async function captureImage({ imageUrl, pageUrl, fallbackTitle, tabId, page }) {
+async function captureImage({ imageUrl, pageUrl, fallbackTitle, tabId, page, destinationFolderId }) {
   if (!isDownloadableUrl(imageUrl)) throw new Error("This image uses a browser-only URL and cannot be downloaded.");
   const metadata = page || await readPage(tabId, { pageUrl, title: fallbackTitle });
   return downloadCapture({
@@ -66,23 +115,29 @@ async function captureImage({ imageUrl, pageUrl, fallbackTitle, tabId, page }) {
     imageUrl,
     page: metadata,
     title: fallbackTitle || metadata.title || fileStemFromUrl(imageUrl),
+    destinationFolderId,
   });
 }
 
-async function capturePage({ pageUrl, fallbackTitle, tabId, page }) {
+async function capturePage({ pageUrl, fallbackTitle, tabId, page, destinationFolderId }) {
   let metadata = page || await readPage(tabId, { pageUrl, title: fallbackTitle });
-  if (pageUrl && metadata.pageUrl && normalisePageUrl(pageUrl) !== normalisePageUrl(metadata.pageUrl)) {
+  const previewUrl = metadata.ogImage || metadata.images?.[0]?.url;
+  if (pageUrl && (
+    (metadata.pageUrl && normalisePageUrl(pageUrl) !== normalisePageUrl(metadata.pageUrl))
+    || !isDownloadableUrl(previewUrl)
+  )) {
     metadata = await readRemotePage(pageUrl, fallbackTitle);
   }
-  const previewUrl = metadata.ogImage || metadata.images?.[0]?.url;
-  if (!isDownloadableUrl(previewUrl)) {
+  const resolvedPreviewUrl = metadata.ogImage || metadata.images?.[0]?.url;
+  if (!isDownloadableUrl(resolvedPreviewUrl)) {
     throw new Error("This page does not expose a downloadable preview image.");
   }
   return downloadCapture({
     captureType: "link",
-    imageUrl: previewUrl,
+    imageUrl: resolvedPreviewUrl,
     page: { ...metadata, pageUrl: pageUrl || metadata.pageUrl },
     title: metadata.title || fallbackTitle || hostname(pageUrl),
+    destinationFolderId,
   });
 }
 
@@ -164,7 +219,7 @@ function normalisePageUrl(value) {
   }
 }
 
-async function downloadCapture({ captureType, imageUrl, page, title }) {
+async function downloadCapture({ captureType, imageUrl, page, title, destinationFolderId }) {
   const extension = await inferExtension(imageUrl);
   const stem = captureStem(title, page.siteName || hostname(page.pageUrl));
   const imageFilename = `${CAPTURE_DIRECTORY}/${stem}.${extension}`;
@@ -180,6 +235,7 @@ async function downloadCapture({ captureType, imageUrl, page, title }) {
     sourceDescription: page.description || "",
     capturedAt,
     imageFilename: `${stem}.${extension}`,
+    destinationFolderId: destinationFolderId || "",
   };
 
   const imageDownload = await downloadImageWithFallback({
@@ -201,6 +257,20 @@ async function downloadCapture({ captureType, imageUrl, page, title }) {
     throw new Error(`The image was saved, but its source information was not: ${readableError(error)}`);
   }
 
+  let destinationFolderName = "Koi Captures";
+  if (destinationFolderId) {
+    try {
+      const route = await routeCaptureToKoi({
+        destinationFolderId,
+        imageFilename: `${stem}.${extension}`,
+        sidecarFilename: `${stem}.koi.json`,
+      });
+      destinationFolderName = route.folderName || destinationFolderName;
+    } catch (error) {
+      throw new Error(`The capture is safe in Downloads/Koi Captures, but it was not moved: ${readableError(error)}`);
+    }
+  }
+
   await chrome.storage.local.set({
     lastCapture: {
       ...metadata,
@@ -209,6 +279,7 @@ async function downloadCapture({ captureType, imageUrl, page, title }) {
       imageDownloadId: imageDownload.id,
       metadataDownloadId,
       usedFallback: imageDownload.usedFallback,
+      destinationFolderName,
     },
   });
   return {
@@ -217,8 +288,10 @@ async function downloadCapture({ captureType, imageUrl, page, title }) {
     imageDownloadId: imageDownload.id,
     metadataDownloadId,
     usedFallback: imageDownload.usedFallback,
+    destinationFolderName,
   };
 }
+
 
 async function readPage(tabId, fallback) {
   if (typeof tabId !== "number") return { ...fallback, images: [] };

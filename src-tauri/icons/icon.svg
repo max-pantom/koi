@@ -1,12 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="118" fill="#F7F4ED"/>
-  <rect x="10" y="10" width="492" height="492" rx="108" fill="none" stroke="#292824" stroke-opacity="0.08" stroke-width="4"/>
-  <g transform="translate(56 56) scale(1.5625)">
-    <path fill="#F0644F" fill-rule="evenodd" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#F2A34B" fill-rule="evenodd" transform="rotate(72 128 128)" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#A8B85E" fill-rule="evenodd" transform="rotate(144 128 128)" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#4FA99B" fill-rule="evenodd" transform="rotate(216 128 128)" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#7B70D6" fill-rule="evenodd" transform="rotate(288 128 128)" d="M106 18h44c12 0 22 10 22 22v45c0 7-3 13-7 18l-37 39-37-39c-5-5-7-11-7-18V40c0-12 10-22 22-22Zm22 24a7 7 0 1 0 0 14 7 7 0 1 0 0-14Z"/>
-    <path fill="#292824" fill-rule="evenodd" d="M128 103a25 25 0 1 1 0 50 25 25 0 1 1 0-50Zm0 17a8 8 0 1 0 0 16 8 8 0 1 0 0-16Z"/>
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E8EAF0"/>
+    </linearGradient>
+  </defs>
+  <rect x="80" y="80" width="352" height="352" rx="82" fill="url(#plate)" stroke="#D6D9E0" stroke-width="2"/>
+  <g transform="translate(155 155) scale(.79)" fill="none" stroke="#41454B" stroke-width="19" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
+    <path transform="rotate(72 128 128)" d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
+    <path transform="rotate(144 128 128)" d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
+    <path transform="rotate(216 128 128)" d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
+    <path transform="rotate(288 128 128)" d="M128 107c-8-17-24-48-24-63 0-15 11-27 24-27s24 12 24 27c0 15-16 46-24 63Z"/>
   </g>
 </svg>

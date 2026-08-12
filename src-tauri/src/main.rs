@@ -1,3 +1,4 @@
+mod capture_bridge;
 mod commands;
 mod db;
 mod menu;
@@ -24,6 +25,9 @@ fn main() {
             commands::ensure_capture_folder
         ])
         .setup(|app| {
+            // The extension can still explain that Downloads access is needed
+            // while macOS is presenting the first-run folder permission sheet.
+            capture_bridge::start(app.handle().clone());
             if let Err(error) = commands::ensure_capture_folder(app.handle().clone()) {
                 eprintln!("Koi Capture folder unavailable: {error}");
             }
