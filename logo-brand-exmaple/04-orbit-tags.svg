@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Koi orbit tags</title>
+  <desc id="description">Three tags orbit and merge into a quiet asymmetric symbol.</desc>
+  <defs>
+    <radialGradient id="base" cx="35%" cy="24%" r="88%"><stop stop-color="#fff"/><stop offset="1" stop-color="#e1e5eb"/></radialGradient>
+    <linearGradient id="ink" x1="152" y1="135" x2="372" y2="386" gradientUnits="userSpaceOnUse"><stop stop-color="#1e242b"/><stop offset=".5" stop-color="#59636d"/><stop offset="1" stop-color="#191f25"/></linearGradient>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="160%"><feDropShadow dy="18" stdDeviation="22" flood-opacity=".15"/></filter>
+  </defs>
+  <rect x="48" y="48" width="416" height="416" rx="112" fill="url(#base)" filter="url(#shadow)"/>
+  <g fill="none" stroke="url(#ink)" stroke-width="30" stroke-linejoin="round">
+    <path d="m142 250 82-103 60 9 11 59-82 103-71-68Z"/>
+    <path d="m271 141 112 70-3 61-57 19-112-70 60-80Z" opacity=".84"/>
+    <path d="m371 282-55 121-61 5-30-52 55-121 91 47Z" opacity=".68"/>
+  </g>
+  <circle cx="228" cy="197" r="10" fill="#f6f7f9"/><circle cx="337" cy="235" r="10" fill="#f6f7f9"/><circle cx="298" cy="354" r="10" fill="#f6f7f9"/>
+</svg>

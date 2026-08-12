@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Koi tag bloom</title>
+  <desc id="description">Five softly connected tag forms create a monochrome flower.</desc>
+  <defs>
+    <linearGradient id="plate" x1="96" y1="72" x2="424" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/><stop offset="1" stop-color="#e9ebef"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="176" y1="138" x2="346" y2="382" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1f2329"/><stop offset=".52" stop-color="#515966"/><stop offset="1" stop-color="#20242a"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#111827" flood-opacity=".16"/></filter>
+  </defs>
+  <rect x="48" y="48" width="416" height="416" rx="112" fill="url(#plate)" filter="url(#shadow)"/>
+  <g fill="url(#ink)">
+    <path d="M256 238c-25-26-63-66-63-96a63 63 0 0 1 126 0c0 30-38 70-63 96Zm0-72a13 13 0 1 0 0-26 13 13 0 0 0 0 26Z"/>
+    <path d="M275 249c8-35 24-88 52-97a63 63 0 0 1 39 120c-29 9-78-15-91-23Zm68-23a13 13 0 1 0-8-25 13 13 0 0 0 8 25Z"/>
+    <path d="M268 272c36-3 91-6 109 18a63 63 0 0 1-102 74c-18-24-11-78-7-92Zm42 58a13 13 0 1 0-21-15 13 13 0 0 0 21 15Z"/>
+    <path d="M244 272c14 33 34 85 17 109a63 63 0 0 1-102-74c17-24 71-32 85-35Zm-42 58a13 13 0 1 0 21-15 13 13 0 0 0-21 15Z"/>
+    <path d="M237 249c-31 19-78 47-106 38a63 63 0 0 1 39-120c29 9 55 57 67 82Zm-68-23a13 13 0 1 0 8-25 13 13 0 0 0-8 25Z"/>
+  </g>
+  <circle cx="256" cy="256" r="32" fill="#f7f8fa"/><circle cx="256" cy="256" r="17" fill="#333941"/>
+</svg>

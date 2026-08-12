@@ -8,36 +8,86 @@
   </head>
   <body>
     <main>
-      <header>
+      <header class="popup-header">
         <div>
           <p class="eyebrow">Koi capture</p>
-          <h1>Save visual references</h1>
+          <h1>Choose what to save</h1>
         </div>
-        <img class="mark" src="brand-mark.svg" alt="" aria-hidden="true" />
+        <span id="bridge-state" class="bridge-state">Connecting…</span>
       </header>
 
+      <section class="capture-panel" aria-label="Capture options">
+        <div class="panel-tabs" role="tablist" aria-label="Capture type">
+          <button id="images-tab" class="is-active" type="button" role="tab" aria-selected="true" aria-controls="images-panel">
+            Images
+          </button>
+          <button id="page-tab" type="button" role="tab" aria-selected="false" aria-controls="page-panel" tabindex="-1">
+            Page
+          </button>
+        </div>
+
+        <section id="images-panel" class="tab-panel" role="tabpanel" aria-labelledby="images-tab">
+          <div class="section-head">
+            <div>
+              <h2>Images on this page</h2>
+              <p>Select an image to save it immediately.</p>
+            </div>
+            <span id="image-count" class="count-badge"></span>
+          </div>
+          <div id="image-grid" class="image-grid"></div>
+          <div id="capture-unavailable" class="capture-unavailable" hidden>
+            <span class="capture-unavailable-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+            </span>
+            <div>
+              <strong>Nothing available here</strong>
+              <p>Open a regular website, then try Koi again.</p>
+            </div>
+          </div>
+          <p id="empty-images" class="empty" hidden>No downloadable images were found.</p>
+        </section>
+
+        <section id="page-panel" class="tab-panel" role="tabpanel" aria-labelledby="page-tab" hidden>
+          <div id="page-card" class="page-card">
+            <div class="preview-wrap">
+              <img id="page-preview" alt="" hidden />
+              <span class="page-fallback" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+              </span>
+            </div>
+            <div class="page-copy">
+              <p id="site-name" class="site-name"></p>
+              <h2 id="page-title"></h2>
+            </div>
+            <button id="save-page" class="primary" type="button" disabled>Save page</button>
+          </div>
+        </section>
+      </section>
+
       <section class="destination-card" aria-labelledby="destination-title">
-        <div class="section-head">
-          <h2 id="destination-title">Save location</h2>
-          <span id="bridge-state">Connecting to Koi…</span>
+        <div class="section-head destination-head">
+          <div>
+            <h2 id="destination-title">Destination</h2>
+            <p>Choose a Koi folder for this capture.</p>
+          </div>
         </div>
         <label class="field" for="destination-folder">
-          <span>Folder</span>
+          <span>Save to</span>
           <select id="destination-folder" disabled>
             <option value="">Koi Captures</option>
           </select>
         </label>
         <details class="capture-settings">
-          <summary>Capture settings</summary>
-          <label class="check-row" for="ask-every-time">
-            <input id="ask-every-time" type="checkbox" checked />
+          <summary>Quick Save</summary>
+          <label class="switch-row" for="ask-every-time">
             <span>
-              <strong>Ask where to save</strong>
-              <small>Choose a Koi folder in this popup before each capture.</small>
+              <strong>Ask every time</strong>
+              <small>Show the destination before saving.</small>
             </span>
+            <input id="ask-every-time" type="checkbox" checked />
           </label>
           <label class="field quick-save-field" for="quick-save-folder">
-            <span>Quick Save folder</span>
+            <span>Default folder</span>
             <select id="quick-save-folder" disabled>
               <option value="">Koi Captures</option>
             </select>
@@ -45,28 +95,6 @@
         </details>
       </section>
 
-      <section id="page-card" class="page-card" aria-labelledby="page-title">
-        <div class="preview-wrap">
-          <img id="page-preview" alt="" hidden />
-          <div id="preview-placeholder" class="preview-placeholder" aria-hidden="true">No preview</div>
-        </div>
-        <div class="page-copy">
-          <p id="site-name" class="site-name">Current page</p>
-          <h2 id="page-title">Loading page…</h2>
-        </div>
-        <button id="save-page" class="primary" type="button" disabled>Save page preview</button>
-      </section>
-
-      <section aria-labelledby="images-title">
-        <div class="section-head">
-          <h2 id="images-title">Images on this page</h2>
-          <span id="image-count"></span>
-        </div>
-        <div id="image-grid" class="image-grid"></div>
-        <p id="empty-images" class="empty" hidden>No downloadable images found on this page.</p>
-      </section>
-
-      <p class="hint">Tip: right-click any image and select “Save image to Koi.”</p>
       <p id="status" class="status" role="status" aria-live="polite"></p>
     </main>
     <script src="popup.js" type="module"></script>

@@ -1,13 +1,17 @@
 import { getKoiFolders } from "./koi-bridge.js";
 
 const pagePreview = document.querySelector("#page-preview");
-const previewPlaceholder = document.querySelector("#preview-placeholder");
 const pageTitle = document.querySelector("#page-title");
 const siteName = document.querySelector("#site-name");
 const savePageButton = document.querySelector("#save-page");
+const imagesTab = document.querySelector("#images-tab");
+const pageTab = document.querySelector("#page-tab");
+const imagesPanel = document.querySelector("#images-panel");
+const pagePanel = document.querySelector("#page-panel");
 const imageGrid = document.querySelector("#image-grid");
 const imageCount = document.querySelector("#image-count");
 const emptyImages = document.querySelector("#empty-images");
+const captureUnavailable = document.querySelector("#capture-unavailable");
 const status = document.querySelector("#status");
 const bridgeState = document.querySelector("#bridge-state");
 const destinationFolder = document.querySelector("#destination-folder");
@@ -21,12 +25,13 @@ let pendingContextCapture;
 void initialise();
 
 async function initialise() {
-  await initialiseDestinations();
+  const destinationsReady = initialiseDestinations();
   const isContextWindow = new URLSearchParams(location.search).has("context");
   const pending = isContextWindow ? await chrome.storage.local.get("pendingContextCapture") : {};
   pendingContextCapture = pending.pendingContextCapture;
   if (pendingContextCapture) {
     renderPendingCapture(pendingContextCapture);
+    await destinationsReady;
     return;
   }
   try {
@@ -37,20 +42,29 @@ async function initialise() {
     page = await chrome.tabs.sendMessage(tab.id, { type: "KOI_GET_PAGE" });
     renderPage(page);
   } catch (error) {
-    pageTitle.textContent = "This page cannot be captured";
-    setStatus(error instanceof Error ? error.message : String(error), true);
+    captureUnavailable.hidden = false;
+    imageGrid.hidden = true;
+    imageCount.hidden = true;
+    pageTab.disabled = true;
+    setStatus(readableCaptureError(error), true);
   }
+  await destinationsReady;
 }
 
 function renderPendingCapture(capture) {
   page = capture.page;
   document.body.classList.add("is-context-capture");
+  showTab("page");
   pageTitle.textContent = capture.type === "KOI_CAPTURE_IMAGE"
     ? capture.imageTitle || "Selected image"
     : capture.page?.title || "Selected page";
-  siteName.textContent = capture.page?.siteName || hostname(capture.page?.pageUrl) || "Current page";
+  siteName.textContent = capture.page?.siteName || hostname(capture.page?.pageUrl);
+  if (capture.type === "KOI_CAPTURE_IMAGE" && capture.imageUrl) {
+    pagePreview.src = capture.imageUrl;
+    pagePreview.hidden = false;
+  }
   savePageButton.disabled = false;
-  savePageButton.textContent = capture.type === "KOI_CAPTURE_IMAGE" ? "Save selected image" : "Save page preview";
+  savePageButton.textContent = capture.type === "KOI_CAPTURE_IMAGE" ? "Save selected image" : "Save page";
 }
 
 async function initialiseDestinations() {
@@ -76,8 +90,10 @@ async function initialiseDestinations() {
       quickSaveFolderId: quickSaveFolder.value,
     });
     bridgeState.textContent = folders.length === 1 ? "1 folder" : `${folders.length} folders`;
+    bridgeState.classList.add("is-connected");
   } catch {
-    bridgeState.textContent = "Open Koi to choose";
+    bridgeState.textContent = "Open Koi";
+    bridgeState.classList.remove("is-connected");
     destinationFolder.disabled = true;
     quickSaveFolder.disabled = true;
   }
@@ -112,19 +128,44 @@ function selectedDestinationFolderId() {
 
 function renderPage(metadata) {
   pageTitle.textContent = metadata.title || "Untitled page";
-  siteName.textContent = metadata.siteName || hostname(metadata.pageUrl) || "Current page";
+  siteName.textContent = metadata.siteName || hostname(metadata.pageUrl);
   savePageButton.disabled = !metadata.ogImage;
 
   if (metadata.ogImage) {
     pagePreview.src = metadata.ogImage;
     pagePreview.hidden = false;
-    previewPlaceholder.hidden = true;
   }
 
   const images = metadata.images.slice(0, 12);
   imageCount.textContent = `${images.length}`;
   emptyImages.hidden = images.length > 0;
   imageGrid.replaceChildren(...images.map(imageButton));
+}
+
+imagesTab.addEventListener("click", () => showTab("images"));
+pageTab.addEventListener("click", () => showTab("page"));
+
+for (const tab of [imagesTab, pageTab]) {
+  tab.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const next = tab === imagesTab ? pageTab : imagesTab;
+    if (next.disabled) return;
+    showTab(next === imagesTab ? "images" : "page");
+    next.focus();
+  });
+}
+
+function showTab(name) {
+  const showImages = name === "images";
+  imagesTab.classList.toggle("is-active", showImages);
+  imagesTab.setAttribute("aria-selected", String(showImages));
+  imagesTab.tabIndex = showImages ? 0 : -1;
+  pageTab.classList.toggle("is-active", !showImages);
+  pageTab.setAttribute("aria-selected", String(!showImages));
+  pageTab.tabIndex = showImages ? -1 : 0;
+  imagesPanel.hidden = !showImages;
+  pagePanel.hidden = showImages;
 }
 
 function imageButton(image, index) {
@@ -203,4 +244,12 @@ function hostname(value) {
   } catch {
     return "";
   }
+}
+
+function readableCaptureError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/receiving end does not exist|could not establish connection/i.test(message)) {
+    return "Refresh this page once, then open Koi again.";
+  }
+  return message;
 }

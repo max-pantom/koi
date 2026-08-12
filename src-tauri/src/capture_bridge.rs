@@ -64,11 +64,9 @@ fn handle_stream(app: &AppHandle, mut stream: TcpStream) {
             return;
         }
     };
-    let origin = request
-        .header("origin")
-        .filter(|origin| origin.starts_with("chrome-extension://"));
-    let is_extension_request =
-        origin.is_some() && request.header("x-koi-client") == Some("chrome-extension");
+    let request_origin = request.header("origin");
+    let origin = request_origin.filter(|origin| origin.starts_with("chrome-extension://"));
+    let is_extension_request = is_extension_request(&request);
 
     if request.method == "OPTIONS" {
         if let Some(origin) = origin {
@@ -238,6 +236,14 @@ impl HttpRequest {
     }
 }
 
+fn is_extension_request(request: &HttpRequest) -> bool {
+    let has_valid_origin = request
+        .header("origin")
+        .map(|origin| origin.starts_with("chrome-extension://"))
+        .unwrap_or(true);
+    has_valid_origin && request.header("x-koi-client") == Some("chrome-extension")
+}
+
 fn read_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
     let mut bytes = Vec::new();
     let mut buffer = [0_u8; 4096];
@@ -325,7 +331,36 @@ fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_subsequence, validate_filename};
+    use super::{find_subsequence, is_extension_request, validate_filename, HttpRequest};
+
+    fn request(headers: &[(&str, &str)]) -> HttpRequest {
+        HttpRequest {
+            method: "GET".into(),
+            path: "/v1/folders".into(),
+            headers: headers
+                .iter()
+                .map(|(key, value)| ((*key).into(), (*value).into()))
+                .collect(),
+            body: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn accepts_extension_client_with_extension_or_omitted_origin() {
+        assert!(is_extension_request(&request(&[
+            ("Origin", "chrome-extension://example"),
+            ("X-Koi-Client", "chrome-extension"),
+        ])));
+        assert!(is_extension_request(&request(&[(
+            "X-Koi-Client",
+            "chrome-extension"
+        ),])));
+        assert!(!is_extension_request(&request(&[
+            ("Origin", "https://example.com"),
+            ("X-Koi-Client", "chrome-extension"),
+        ])));
+        assert!(!is_extension_request(&request(&[])));
+    }
 
     #[test]
     fn accepts_only_a_single_capture_filename() {

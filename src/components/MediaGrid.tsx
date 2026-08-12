@@ -1,5 +1,5 @@
 import { Grid2X2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import type { GridLayout, MediaItem } from "../lib/types";
 import { MediaTile } from "./MediaTile";
 
@@ -31,6 +31,7 @@ export function MediaGrid({
   gridColumns,
   gridLayout,
   onScrollChange,
+  onStartWindowDrag,
 }: {
   items: MediaItem[];
   selectedItem?: MediaItem;
@@ -44,6 +45,7 @@ export function MediaGrid({
   gridColumns: number;
   gridLayout: GridLayout;
   onScrollChange: (scrollTop: number) => void;
+  onStartWindowDrag: (event: PointerEvent<HTMLElement>) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | undefined>(undefined);
@@ -104,7 +106,7 @@ export function MediaGrid({
 
   if (!items.length) {
     return (
-      <div className="grid-wrap" ref={scrollRef} data-tauri-drag-region>
+      <div className="grid-wrap" ref={scrollRef} onPointerDown={onStartWindowDrag}>
         <button className="quiet-empty" type="button" onClick={onAddFolder}>
           <Grid2X2 size={17} aria-hidden="true" />
           <span>{isLoading ? "Scanning" : hasFolders ? "No images found" : "Add a folder"}</span>
@@ -114,8 +116,8 @@ export function MediaGrid({
   }
 
   return (
-    <div className="grid-wrap" ref={scrollRef} data-tauri-drag-region>
-      <div className="mood-grid" style={{ height: masonry.height }} data-tauri-drag-region>
+    <div className="grid-wrap" ref={scrollRef} onPointerDown={onStartWindowDrag}>
+      <div className="mood-grid" style={{ height: masonry.height }}>
         {masonry.visible.map((position) => (
           <MediaTile
             key={position.item.id}

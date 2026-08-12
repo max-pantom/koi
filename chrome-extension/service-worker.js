@@ -1,12 +1,15 @@
 import { downloadImageWithFallback, downloadTextFile } from "./downloads.js";
 import { buildCaptureMetadata } from "./capture-metadata.js";
+import { buildContextCapture } from "./context-capture.js";
 import { routeCaptureToKoi } from "./koi-bridge.js";
 
 const CAPTURE_DIRECTORY = "Koi Captures";
 const IMAGE_MENU_ID = "koi-save-image";
 const PAGE_MENU_ID = "koi-save-page";
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(registerContextMenus);
+
+function registerContextMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: IMAGE_MENU_ID,
@@ -15,46 +18,16 @@ chrome.runtime.onInstalled.addListener(() => {
     });
     chrome.contextMenus.create({
       id: PAGE_MENU_ID,
-      title: "Save page preview to Koi",
+      title: "Save page to Koi",
       contexts: ["page", "link"],
     });
   });
-});
+}
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  const capture = info.menuItemId === IMAGE_MENU_ID
-    ? {
-        type: "KOI_CAPTURE_IMAGE",
-        tabId: tab?.id,
-        imageUrl: info.srcUrl,
-        imageTitle: tab?.title || "Image",
-        sourceLinkUrl: info.linkUrl || "",
-        page: {
-          pageUrl: info.pageUrl || tab?.url || "",
-          canonicalUrl: "",
-          title: tab?.title || "",
-          siteName: hostname(info.pageUrl || tab?.url),
-          images: [],
-        },
-      }
-    : info.menuItemId === PAGE_MENU_ID
-      ? {
-          type: "KOI_CAPTURE_PAGE",
-          tabId: tab?.id,
-          page: {
-            pageUrl: info.linkUrl || info.pageUrl || tab?.url || "",
-            canonicalUrl: "",
-            title: tab?.title || "",
-            siteName: hostname(info.linkUrl || info.pageUrl || tab?.url),
-            images: [],
-          },
-          sourceLinkUrl: info.linkUrl || "",
-        }
-      : undefined;
-
-  const task = capture ? handleContextCapture(capture) : undefined;
-
-  task?.catch((error) => console.error("Koi capture failed", error));
+  const capture = buildContextCapture(info, tab);
+  if (!capture) return;
+  void handleContextCapture(capture).catch((error) => console.error("Koi capture failed", error));
 });
 
 async function handleContextCapture(capture) {

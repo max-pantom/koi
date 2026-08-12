@@ -2,6 +2,7 @@ import {
   Folder as FolderIcon,
   FolderPlus,
   Grid2X2,
+  Grid3X3,
   Images,
   PanelLeftClose,
   PanelLeftOpen,
@@ -9,7 +10,7 @@ import {
   Settings2,
   X,
 } from "lucide-react";
-import { useId, type RefObject } from "react";
+import { Fragment, useId, type PointerEvent, type RefObject } from "react";
 import type { Folder, SearchMode } from "../lib/types";
 
 export function Sidebar({
@@ -32,6 +33,7 @@ export function Sidebar({
   onQueryChange,
   onOpenSettings,
   onToggle,
+  onStartWindowDrag,
   searchRef,
 }: {
   folders: Folder[];
@@ -53,15 +55,16 @@ export function Sidebar({
   onQueryChange: (query: string) => void;
   onOpenSettings: () => void;
   onToggle: () => void;
+  onStartWindowDrag: (event: PointerEvent<HTMLElement>) => void;
   searchRef: RefObject<HTMLInputElement>;
 }) {
   const searchInputId = useId();
   const searchPanelId = useId();
-  const thumbnailSize = 20 - gridColumns;
+  const densityPreset = gridColumns <= 6 ? "large" : gridColumns <= 11 ? "balanced" : "dense";
 
-  if (!isOpen) {
-    return (
-      <div className="sidebar-reveal-chrome" data-tauri-drag-region>
+  return (
+    <Fragment>
+      <div className={`sidebar-reveal-chrome${isOpen ? " is-hidden" : ""}`} onPointerDown={onStartWindowDrag}>
         <button
           className="sidebar-toggle sidebar-reveal"
           type="button"
@@ -75,12 +78,14 @@ export function Sidebar({
           <PanelLeftOpen size={15} strokeWidth={1.7} aria-hidden="true" />
         </button>
       </div>
-    );
-  }
-
-  return (
-    <aside className="sidebar" id="library-sidebar" aria-label="Koi library">
-      <div className="sidebar-titlebar" data-tauri-drag-region>
+      <aside
+        className={`sidebar${isOpen ? "" : " is-closed"}`}
+        id="library-sidebar"
+        aria-label="Koi library"
+        aria-hidden={!isOpen}
+        {...(!isOpen ? { inert: "" } : {}) as Record<string, string>}
+      >
+      <div className="sidebar-titlebar" onPointerDown={onStartWindowDrag}>
         <output
           className={isLoading ? "sidebar-count is-loading" : "sidebar-count"}
           aria-label={isLoading ? "Scanning library" : `${total.toLocaleString()} ${total === 1 ? "item" : "items"}`}
@@ -221,27 +226,51 @@ export function Sidebar({
         <div className="sidebar-spacer" />
 
         <div className="sidebar-footer">
-          <label className="sidebar-density">
-            <span>
-              <Grid2X2 size={14} strokeWidth={1.7} aria-hidden="true" />
-              Thumbnail size
-            </span>
-            <input
-              type="range"
-              min="4"
-              max="16"
-              value={thumbnailSize}
-              aria-label="Thumbnail size"
-              aria-valuetext={`${thumbnailSize} of 16`}
-              onChange={(event) => onGridColumnsChange(20 - Number(event.target.value))}
-            />
-          </label>
+          <section className="thumbnail-control" aria-labelledby="thumbnail-heading">
+            <div className="thumbnail-control-heading">
+              <span id="thumbnail-heading">Image size</span>
+              <output>{densityPreset === "large" ? "Large" : densityPreset === "balanced" ? "Balanced" : "Dense"}</output>
+            </div>
+            <div className="thumbnail-presets" role="group" aria-label="Thumbnail size">
+              <button
+                className={densityPreset === "large" ? "is-active" : ""}
+                type="button"
+                aria-pressed={densityPreset === "large"}
+                onClick={() => onGridColumnsChange(5)}
+                title="Large thumbnails"
+              >
+                <Images size={15} strokeWidth={1.7} aria-hidden="true" />
+                <span>Large</span>
+              </button>
+              <button
+                className={densityPreset === "balanced" ? "is-active" : ""}
+                type="button"
+                aria-pressed={densityPreset === "balanced"}
+                onClick={() => onGridColumnsChange(9)}
+                title="Balanced thumbnails"
+              >
+                <Grid2X2 size={15} strokeWidth={1.7} aria-hidden="true" />
+                <span>Balanced</span>
+              </button>
+              <button
+                className={densityPreset === "dense" ? "is-active" : ""}
+                type="button"
+                aria-pressed={densityPreset === "dense"}
+                onClick={() => onGridColumnsChange(14)}
+                title="Dense thumbnails"
+              >
+                <Grid3X3 size={15} strokeWidth={1.7} aria-hidden="true" />
+                <span>Dense</span>
+              </button>
+            </div>
+          </section>
           <button className="sidebar-row" type="button" onClick={onOpenSettings}>
             <Settings2 size={15} strokeWidth={1.7} aria-hidden="true" />
             <span>Settings</span>
           </button>
         </div>
       </div>
-    </aside>
+      </aside>
+    </Fragment>
   );
 }

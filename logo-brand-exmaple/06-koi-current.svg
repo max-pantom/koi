@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Koi current</title>
+  <desc id="description">Two flowing currents meet to create a compact K-shaped monogram.</desc>
+  <defs>
+    <linearGradient id="tile" x1="69" y1="54" x2="446" y2="458" gradientUnits="userSpaceOnUse"><stop stop-color="#fff"/><stop offset=".62" stop-color="#f0f2f5"/><stop offset="1" stop-color="#dfe3e9"/></linearGradient>
+    <linearGradient id="ink" x1="154" y1="128" x2="365" y2="387" gradientUnits="userSpaceOnUse"><stop stop-color="#151a20"/><stop offset=".52" stop-color="#59636d"/><stop offset="1" stop-color="#161b21"/></linearGradient>
+    <filter id="s" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dy="19" stdDeviation="23" flood-opacity=".16"/></filter>
+  </defs>
+  <rect x="48" y="48" width="416" height="416" rx="112" fill="url(#tile)" filter="url(#s)"/>
+  <path d="M170 137c0 104 38 119 86 119s86-15 86-119c42 49 56 112 31 166-19 41-59 58-100 32-7-4-12-8-17-13-5 5-10 9-17 13-41 26-81 9-100-32-25-54-11-117 31-166Z" fill="none" stroke="url(#ink)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m256 255 94 102" fill="none" stroke="#20262d" stroke-width="38" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="14" fill="#f7f8fa"/>
+</svg>

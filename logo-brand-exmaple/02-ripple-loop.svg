@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Koi ripple loop</title>
+  <desc id="description">A continuous dark ribbon forms a calm water ripple and abstract K.</desc>
+  <defs>
+    <linearGradient id="shell" x1="80" y1="60" x2="442" y2="466" gradientUnits="userSpaceOnUse"><stop stop-color="#fff"/><stop offset=".62" stop-color="#f4f5f8"/><stop offset="1" stop-color="#dfe3e9"/></linearGradient>
+    <linearGradient id="loop" x1="150" y1="126" x2="377" y2="390" gradientUnits="userSpaceOnUse"><stop stop-color="#111820"/><stop offset=".48" stop-color="#50606b"/><stop offset="1" stop-color="#11171e"/></linearGradient>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dy="20" stdDeviation="24" flood-opacity=".16"/></filter>
+  </defs>
+  <rect x="48" y="48" width="416" height="416" rx="116" fill="url(#shell)" filter="url(#s)"/>
+  <path d="M135 257c0-78 50-136 121-136 73 0 121 53 121 121 0 30-11 53-30 68-30 24-65 11-91-5-30-19-55-27-78-13-18 10-26 29-22 48 5 23 26 38 51 38 52 0 98-37 126-81" fill="none" stroke="url(#loop)" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m319 287 44 11-10-45" fill="none" stroke="#171d24" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

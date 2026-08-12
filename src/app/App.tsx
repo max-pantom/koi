@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -226,6 +226,13 @@ export function App() {
 
   const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
 
+  const startWindowDrag = (event: PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, input, select, textarea, a, [role='slider'], .tile, .preview-layer, .modal-layer")) return;
+    void getCurrentWindow().startDragging();
+  };
+
   const commands = [
     { id: "add-folder", label: "Add folder", shortcut: "Cmd O", run: () => void store.addFolder().then(() => playSound("folder_added")) },
     { id: "search", label: "Search", shortcut: "Cmd F", run: () => {
@@ -422,11 +429,12 @@ export function App() {
         onQueryChange={store.setQuery}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onToggle={toggleSidebar}
+        onStartWindowDrag={startWindowDrag}
         searchRef={searchRef}
       />
 
       <section className="workspace">
-        <div className="workspace-titlebar-drag" data-tauri-drag-region aria-hidden="true" />
+        <div className="workspace-titlebar-drag" aria-hidden="true" onPointerDown={startWindowDrag} />
         <MediaGrid
           items={store.filteredItems}
           selectedItem={store.selectedItem}
@@ -452,6 +460,7 @@ export function App() {
           gridColumns={store.gridColumns}
           gridLayout={store.gridLayout}
           onScrollChange={(scrollTop) => localStorage.setItem("koi.scrollTop", String(scrollTop))}
+          onStartWindowDrag={startWindowDrag}
         />
         <div className="grid-edge-blur is-top" aria-hidden="true" />
         <div className="grid-edge-blur is-bottom" aria-hidden="true" />
