@@ -16,7 +16,7 @@
 
 :root {
   color: #252523;
-  background: #efefec;
+  background: transparent;
   font-family: "Open Runde", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
@@ -28,6 +28,9 @@ body {
   width: 380px;
   min-height: 420px;
   margin: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #efefec;
 }
 
 main {
@@ -283,7 +286,8 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .is-context-capture #page-panel { display: grid; }
 
 @media (prefers-color-scheme: dark) {
-  :root { color: #efefec; background: #171716; }
+  :root { color: #efefec; background: transparent; }
+  body { background: #171716; }
   h2 { color: #ecece8; }
   .eyebrow, .section-head p, .destination-head p, .site-name, .empty, .capture-unavailable p { color: #b9b9b2; }
   .bridge-state, .count-badge { color: #d0d0ca; background: #353533; }

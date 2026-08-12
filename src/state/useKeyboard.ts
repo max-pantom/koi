@@ -11,7 +11,6 @@ type KeyboardActions = {
   toggleDarkMode: () => void;
   openSelected: () => void;
   quickLook: () => void;
-  toggleSimilar: () => void;
   moveSelection: (delta: number) => void;
   jumpToTop: () => void;
   jumpToBottom: () => void;
@@ -67,7 +66,6 @@ export function useKeyboard(actions: KeyboardActions) {
       if (key === " ") return run(event, actions.quickLook);
       if (key === "m") return run(event, actions.toggleDarkMode);
       if (key === "p") return run(event, actions.showPalette);
-      if (key === "s") return run(event, actions.toggleSimilar);
       if (key === "t") return run(event, actions.editTags);
       if (event.shiftKey && key === "g") return run(event, actions.jumpToBottom);
       if (key === "g" && lastKey.current === "g") {

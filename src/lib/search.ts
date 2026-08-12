@@ -8,10 +8,22 @@ type SearchToken = {
   field?: SearchField;
 };
 
+type PreparedToken = SearchToken & {
+  compact: string;
+};
+
 type WeightedField = {
   field: SearchField;
   value: string;
+  compact: string;
+  words: string[];
   weight: number;
+};
+
+type CachedFields = {
+  folderName: string;
+  normal: WeightedField[];
+  smart: WeightedField[];
 };
 
 const FIELD_ALIASES = new Map<string, SearchField>([
@@ -27,20 +39,31 @@ const FIELD_ALIASES = new Map<string, SearchField>([
   ["colour", "color"],
 ]);
 
+const SEARCH_FIELD_CACHE = new WeakMap<MediaItem, CachedFields>();
+
 export function searchMedia(
   items: MediaItem[],
   query: string,
   mode: SearchMode,
   folderNames = new Map<string, string>(),
 ) {
-  const tokens = parseSearchQuery(query);
-  if (!tokens.length) return items;
+  const parsedTokens = parseSearchQuery(query);
+  if (!parsedTokens.length) return items;
 
-  return items
-    .map((item, index) => ({ item, index, score: scoreItem(item, tokens, mode, folderNames) }))
-    .filter((result) => result.score >= 0)
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .map(({ item }) => item);
+  const tokens: PreparedToken[] = parsedTokens.map((token) => ({
+    ...token,
+    compact: token.value.replace(/ /g, ""),
+  }));
+  const wholeQuery = normalize(tokens.filter((token) => !token.exclude && !token.field).map((token) => token.value).join(" "));
+  const results: Array<{ item: MediaItem; index: number; score: number }> = [];
+
+  items.forEach((item, index) => {
+    const score = scoreItem(item, tokens, wholeQuery, mode, folderNames);
+    if (score >= 0) results.push({ item, index, score });
+  });
+
+  results.sort((a, b) => b.score - a.score || a.index - b.index);
+  return results.map(({ item }) => item);
 }
 
 export function parseSearchQuery(query: string): SearchToken[] {
@@ -65,19 +88,20 @@ export function parseSearchQuery(query: string): SearchToken[] {
 
 function scoreItem(
   item: MediaItem,
-  tokens: SearchToken[],
+  tokens: PreparedToken[],
+  wholeQuery: string,
   mode: SearchMode,
   folderNames: Map<string, string>,
 ) {
-  const fields = buildFields(item, mode, folderNames);
+  const fields = getFields(item, mode, folderNames);
   let total = 0;
 
   for (const token of tokens) {
-    const candidates = token.field ? fields.filter((field) => field.field === token.field) : fields;
-    const best = candidates.reduce(
-      (score, field) => Math.max(score, matchScore(field.value, token.value) * field.weight),
-      0,
-    );
+    let best = 0;
+    for (const field of fields) {
+      if (token.field && field.field !== token.field) continue;
+      best = Math.max(best, matchScore(field, token.value, token.compact) * field.weight);
+    }
 
     if (token.exclude) {
       if (best > 0) return -1;
@@ -88,39 +112,53 @@ function scoreItem(
     total += best;
   }
 
-  const wholeQuery = normalize(tokens.filter((token) => !token.exclude && !token.field).map((token) => token.value).join(" "));
-  if (wholeQuery && normalize(item.name).includes(wholeQuery)) total += 24;
+  if (wholeQuery && fields[0]?.value.includes(wholeQuery)) total += 24;
   return total;
 }
 
-function buildFields(item: MediaItem, mode: SearchMode, folderNames: Map<string, string>): WeightedField[] {
+function getFields(item: MediaItem, mode: SearchMode, folderNames: Map<string, string>) {
+  const folderName = folderNames.get(item.folderId) ?? "";
+  const cached = SEARCH_FIELD_CACHE.get(item);
+  if (cached?.folderName === folderName) return mode === "smart" ? cached.smart : cached.normal;
+
   const fields: WeightedField[] = [
-    { field: "name", value: normalize(item.name), weight: 10 },
-    { field: "tag", value: normalize(item.tags.join(" ")), weight: 9 },
-    { field: "folder", value: normalize(folderNames.get(item.folderId) ?? ""), weight: 6 },
-    { field: "site", value: normalize([item.sourceTitle, item.sourcePageTitle, item.sourceSiteName, item.sourceDescription, hostname(item.sourceLinkUrl), hostname(item.sourcePageUrl), hostname(item.sourceCanonicalUrl), hostname(item.sourceFinalUrl), hostname(item.sourceUrl)].filter(Boolean).join(" ")), weight: 7 },
-    { field: "type", value: normalize([item.kind, item.captureType, item.extension].filter(Boolean).join(" ")), weight: 5 },
+    createField("name", item.name, 10),
+    createField("tag", item.tags.join(" "), 9),
+    createField("folder", folderName, 6),
+    createField("site", [item.sourceTitle, item.sourcePageTitle, item.sourceSiteName, item.sourceDescription, hostname(item.sourceLinkUrl), hostname(item.sourcePageUrl), hostname(item.sourceCanonicalUrl), hostname(item.sourceFinalUrl), hostname(item.sourceUrl)].filter(Boolean).join(" "), 7),
+    createField("type", [item.kind, item.captureType, item.extension].filter(Boolean).join(" "), 5),
   ];
 
-  if (mode === "smart") {
-    fields.push(
-      { field: "color", value: normalize([...item.colorNames, ...item.dominantColors].join(" ")), weight: 7 },
-      { field: "name", value: normalize(item.path), weight: 2 },
-      { field: "site", value: normalize([item.sourceDescription, item.sourceLinkUrl, item.sourcePageUrl, item.sourceCanonicalUrl, item.sourceFinalUrl, item.sourceUrl].filter(Boolean).join(" ")), weight: 4 },
-    );
-  }
+  const smart = [
+    ...fields,
+    createField("color", [...item.colorNames, ...item.dominantColors].join(" "), 7),
+    createField("name", item.path, 2),
+    createField("site", [item.sourceDescription, item.sourceLinkUrl, item.sourcePageUrl, item.sourceCanonicalUrl, item.sourceFinalUrl, item.sourceUrl].filter(Boolean).join(" "), 4),
+  ];
 
-  return fields;
+  SEARCH_FIELD_CACHE.set(item, { folderName, normal: fields, smart });
+  return mode === "smart" ? smart : fields;
 }
 
-function matchScore(haystack: string, needle: string) {
-  if (!haystack || !needle) return 0;
-  if (haystack === needle) return 12;
-  if (haystack.replace(/\s/g, "") === needle.replace(/\s/g, "")) return 11;
-  const words = haystack.split(" ");
+function createField(field: SearchField, value: string, weight: number): WeightedField {
+  const normalized = normalize(value);
+  return {
+    field,
+    value: normalized,
+    compact: normalized.replace(/ /g, ""),
+    words: normalized.split(" "),
+    weight,
+  };
+}
+
+function matchScore(haystack: WeightedField, needle: string, compactNeedle: string) {
+  const { value, compact, words } = haystack;
+  if (!value || !needle) return 0;
+  if (value === needle) return 12;
+  if (compact === compactNeedle) return 11;
   if (words.includes(needle)) return 10;
   if (words.some((word) => word.startsWith(needle))) return 7;
-  if (haystack.includes(needle)) return 5;
+  if (value.includes(needle)) return 5;
   if (needle.length >= 4 && words.some((word) => oneEditAway(word, needle))) return 2;
   return 0;
 }

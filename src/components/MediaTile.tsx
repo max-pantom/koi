@@ -1,29 +1,33 @@
 import { mediaSrc } from "../lib/media";
 import type { MediaItem } from "../lib/types";
-import type { CSSProperties, MouseEvent } from "react";
+import { memo, type CSSProperties, type MouseEvent } from "react";
 
-export function MediaTile({
-  item,
-  isActive,
-  style,
-  onSelect,
-  onContextMenu,
-  onMeasure,
-}: {
+type MediaTileProps = {
   item: MediaItem;
+  index: number;
   isActive: boolean;
   style: CSSProperties;
-  onSelect: () => void;
-  onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
-  onMeasure: (width: number, height: number) => void;
-}) {
+  onActivate: (index: number) => void;
+  onContextMenu: (event: MouseEvent<HTMLButtonElement>, index: number) => void;
+  onMeasure: (mediaId: string, width: number, height: number) => void;
+};
+
+export const MediaTile = memo(function MediaTile({
+  item,
+  index,
+  isActive,
+  style,
+  onActivate,
+  onContextMenu,
+  onMeasure,
+}: MediaTileProps) {
   return (
     <button
       className={`${isActive ? "tile is-active" : "tile"}${item.missing ? " is-missing" : ""}`}
       style={style}
       type="button"
-      onClick={onSelect}
-      onContextMenu={onContextMenu}
+      onClick={() => onActivate(index)}
+      onContextMenu={(event) => onContextMenu(event, index)}
       aria-label={item.sourceTitle || item.name}
       title={item.sourceTitle || item.name}
     >
@@ -40,10 +44,22 @@ export function MediaTile({
         onLoad={(event) => {
           const image = event.currentTarget;
           if (item.width !== image.naturalWidth || item.height !== image.naturalHeight) {
-            onMeasure(image.naturalWidth, image.naturalHeight);
+            onMeasure(item.id, image.naturalWidth, image.naturalHeight);
           }
         }}
       />
     </button>
   );
+}, sameTileProps);
+
+function sameTileProps(previous: MediaTileProps, next: MediaTileProps) {
+  return previous.item === next.item
+    && previous.index === next.index
+    && previous.isActive === next.isActive
+    && previous.onActivate === next.onActivate
+    && previous.onContextMenu === next.onContextMenu
+    && previous.onMeasure === next.onMeasure
+    && previous.style.width === next.style.width
+    && previous.style.height === next.style.height
+    && previous.style.transform === next.style.transform;
 }

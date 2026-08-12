@@ -8,6 +8,7 @@ import {
   PanelLeftOpen,
   Search,
   Settings2,
+  Square,
   X,
 } from "lucide-react";
 import { Fragment, useId, type PointerEvent, type RefObject } from "react";
@@ -60,7 +61,7 @@ export function Sidebar({
 }) {
   const searchInputId = useId();
   const searchPanelId = useId();
-  const densityPreset = gridColumns <= 6 ? "large" : gridColumns <= 11 ? "balanced" : "dense";
+  const densityPreset = gridColumns <= 4 ? "xl" : gridColumns <= 7 ? "large" : gridColumns <= 11 ? "medium" : "small";
 
   return (
     <Fragment>
@@ -229,9 +230,19 @@ export function Sidebar({
           <section className="thumbnail-control" aria-labelledby="thumbnail-heading">
             <div className="thumbnail-control-heading">
               <span id="thumbnail-heading">Image size</span>
-              <output>{densityPreset === "large" ? "Large" : densityPreset === "balanced" ? "Balanced" : "Dense"}</output>
+              <output>{densityPreset === "xl" ? "XL" : densityPreset === "large" ? "Large" : densityPreset === "medium" ? "Medium" : "Small"}</output>
             </div>
             <div className="thumbnail-presets" role="group" aria-label="Thumbnail size">
+              <button
+                className={densityPreset === "xl" ? "is-active" : ""}
+                type="button"
+                aria-pressed={densityPreset === "xl"}
+                onClick={() => onGridColumnsChange(3)}
+                title="Extra-large thumbnails"
+              >
+                <Square size={15} strokeWidth={1.7} aria-hidden="true" />
+                <span>XL</span>
+              </button>
               <button
                 className={densityPreset === "large" ? "is-active" : ""}
                 type="button"
@@ -243,24 +254,24 @@ export function Sidebar({
                 <span>Large</span>
               </button>
               <button
-                className={densityPreset === "balanced" ? "is-active" : ""}
+                className={densityPreset === "medium" ? "is-active" : ""}
                 type="button"
-                aria-pressed={densityPreset === "balanced"}
+                aria-pressed={densityPreset === "medium"}
                 onClick={() => onGridColumnsChange(9)}
-                title="Balanced thumbnails"
+                title="Medium thumbnails"
               >
                 <Grid2X2 size={15} strokeWidth={1.7} aria-hidden="true" />
-                <span>Balanced</span>
+                <span>Medium</span>
               </button>
               <button
-                className={densityPreset === "dense" ? "is-active" : ""}
+                className={densityPreset === "small" ? "is-active" : ""}
                 type="button"
-                aria-pressed={densityPreset === "dense"}
+                aria-pressed={densityPreset === "small"}
                 onClick={() => onGridColumnsChange(14)}
-                title="Dense thumbnails"
+                title="Small thumbnails"
               >
                 <Grid3X3 size={15} strokeWidth={1.7} aria-hidden="true" />
-                <span>Dense</span>
+                <span>Small</span>
               </button>
             </div>
           </section>

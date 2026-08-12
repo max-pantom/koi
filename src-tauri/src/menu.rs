@@ -120,7 +120,6 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &MenuItem::with_id(app, "quick-look", "Quick Look", true, Some("Space"))?,
             &MenuItem::with_id(app, "show-palette", "Show Palette", true, Some("P"))?,
             &MenuItem::with_id(app, "edit-tags", "Edit Tags", true, Some("T"))?,
-            &MenuItem::with_id(app, "similar", "Show Similar", true, Some("S"))?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "reveal", "Reveal in Finder", true, Some("Cmd+Shift+R"))?,
             &MenuItem::with_id(

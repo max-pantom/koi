@@ -31,7 +31,6 @@ export function App() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: MediaItem } | undefined>();
   const [previewMode, setPreviewMode] = useState<"none" | "quick" | "focus">("none");
   const [isPreviewClosing, setIsPreviewClosing] = useState(false);
-  const [showSimilar, setShowSimilar] = useState(false);
   const [route, setRoute] = useState(initialRoute);
   const searchRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +98,6 @@ export function App() {
     setIsPreviewClosing(true);
     playSound("focus_close");
     window.setTimeout(() => {
-      setShowSimilar(false);
       setIsPaletteOpen(false);
       setPreviewMode("none");
       setIsPreviewClosing(false);
@@ -117,8 +115,6 @@ export function App() {
     setContextMenu(undefined);
     setRoute({ view: "grid" });
   };
-
-  const similarItems = store.selectedItem ? findSimilar(store.filteredItems, store.selectedItem) : [];
 
   const revealSelected = () => {
     if (store.selectedItem) void revealItemInDir(store.selectedItem.path);
@@ -171,7 +167,6 @@ export function App() {
   const editTags = () => {
     if (!store.selectedItem) return;
     setPreviewMode("none");
-    setShowSimilar(false);
     setIsTagEditorOpen(true);
     playSound("command_open");
   };
@@ -234,28 +229,23 @@ export function App() {
   };
 
   const commands = [
-    { id: "add-folder", label: "Add folder", shortcut: "Cmd O", run: () => void store.addFolder().then(() => playSound("folder_added")) },
-    { id: "search", label: "Search", shortcut: "Cmd F", run: () => {
+    { id: "add-folder", label: "Add folder…", shortcut: "⌘O", keywords: "library import", run: () => void store.addFolder().then(() => playSound("folder_added")) },
+    { id: "search", label: "Search library", shortcut: "⌘F", keywords: "find images", run: () => {
       setSidebarOpen(true);
       setIsSearchOpen(true);
       playSound("search_open");
     } },
-    { id: "toggle-sidebar", label: isSidebarOpen ? "Hide sidebar" : "Show sidebar", shortcut: "Ctrl Cmd S", run: toggleSidebar },
-    { id: "all-folders", label: "Show all folders", shortcut: "All", run: () => store.setActiveFolderId("all") },
-    { id: "current-folder", label: "Show current folder", shortcut: "Folder", run: () => store.selectedItem && store.setActiveFolderId(store.selectedItem.folderId) },
-    { id: "rescan", label: "Rescan", shortcut: "Cmd R", run: () => void store.rescan().then(() => playSound("folder_added")) },
-    { id: "reveal", label: "Reveal in Finder", shortcut: "Cmd Shift R", run: revealSelected },
-    { id: "copy-path", label: "Copy path", shortcut: "Cmd Shift C", run: copyPath },
-    { id: "copy-name", label: "Copy image name", shortcut: "Cmd Opt C", run: copyName },
-    { id: "palette", label: "Show palette", shortcut: "P", run: openPalette },
-    { id: "copy-palette", label: "Copy palette", shortcut: "Palette", run: () => copyPalette() },
-    { id: "edit-tags", label: "Edit tags", shortcut: "T", run: editTags },
-    { id: "resolve-missing", label: "Locate missing folder", shortcut: "Local", run: () => resolveFolder() },
-    { id: "open-inbox", label: "Open inbox", shortcut: "Cmd Shift I", run: () => store.inboxFolderId && store.setActiveFolderId(store.inboxFolderId) },
-    { id: "set-inbox", label: "Set current folder as inbox", shortcut: "Local", run: () => activeFolder && store.setInboxFolderId(activeFolder.id) },
-    { id: "toggle-sounds", label: "Toggle sounds", shortcut: soundsEnabled ? "On" : "Off", run: toggleSounds },
-    { id: "toggle-dark", label: "Toggle dark mode", shortcut: "M", run: toggleDarkMode },
-    { id: "compact-grid", label: "Toggle compact grid", shortcut: "Cmd +/-", run: () => store.setGridColumns(store.gridColumns >= 10 ? 6 : 12) },
+    { id: "toggle-sidebar", label: isSidebarOpen ? "Hide sidebar" : "Show sidebar", shortcut: "⌃⌘S", keywords: "panel", run: toggleSidebar },
+    { id: "rescan", label: "Rescan folders", shortcut: "⌘R", keywords: "refresh reload", run: () => void store.rescan().then(() => playSound("folder_added")) },
+    ...(store.inboxFolderId ? [{ id: "open-inbox", label: "Open capture inbox", shortcut: "⇧⌘I", keywords: "extension saves", run: () => store.setActiveFolderId(store.inboxFolderId) }] : []),
+    ...(store.selectedItem ? [
+      { id: "copy-image", label: "Copy image", shortcut: "⌘C", keywords: "clipboard", run: () => void copyImage() },
+      { id: "reveal", label: "Reveal image in Finder", shortcut: "⇧⌘R", keywords: "file locate", run: revealSelected },
+      { id: "palette", label: "Show color palette", shortcut: "P", keywords: "colors", run: openPalette },
+      { id: "edit-tags", label: "Edit image tags", shortcut: "T", keywords: "metadata labels", run: editTags },
+    ] : []),
+    { id: "toggle-dark", label: isDark ? "Use light appearance" : "Use dark appearance", shortcut: "M", keywords: "theme mode", run: toggleDarkMode },
+    { id: "settings", label: "Open settings", shortcut: "⌘,", keywords: "preferences sound layout", run: () => setIsSettingsOpen(true) },
   ];
 
   useKeyboard({
@@ -292,7 +282,6 @@ export function App() {
         playSound("focus_open");
       }
     },
-    toggleSimilar: () => setShowSimilar((value) => !value),
     moveSelection: (delta) => {
       store.moveSelection(delta);
       playSound("select");
@@ -382,7 +371,6 @@ export function App() {
       }
       if (id === "show-palette") openPalette();
       if (id === "edit-tags") editTags();
-      if (id === "similar") setShowSimilar((value) => !value);
       if (id === "reveal") revealSelected();
       if (id === "copy-path") copyPath();
       if (id === "copy-name") copyName();
@@ -483,19 +471,11 @@ export function App() {
           item={store.selectedItem}
           mode={previewMode === "quick" ? "quick" : "focus"}
           isClosing={isPreviewClosing}
-          similarItems={similarItems}
-          showSimilar={showSimilar}
           showPalette={isPaletteOpen}
           onCopyColor={copyHex}
           onClose={closePreview}
           onPrevious={() => store.moveSelection(-1)}
           onNext={() => store.moveSelection(1)}
-          onToggleSimilar={() => setShowSimilar((value) => !value)}
-          onSelectSimilar={(item) => {
-            store.setSelectedIndex(store.filteredItems.findIndex((candidate) => candidate.id === item.id));
-            setPreviewMode("focus");
-            setIsPreviewClosing(false);
-          }}
           onOpenSource={() => openSource()}
         />
       )}
@@ -581,23 +561,6 @@ export function App() {
   );
 }
 
-function findSimilar(items: MediaItem[], item: MediaItem) {
-  const ratio = (item.width || 1) / Math.max(item.height || 1, 1);
-
-  return items
-    .filter((candidate) => candidate.id !== item.id)
-    .map((candidate) => {
-      const candidateRatio = (candidate.width || 1) / Math.max(candidate.height || 1, 1);
-      const sharedColors = candidate.colorNames.filter((color) => item.colorNames.includes(color)).length;
-      const sameFolder = candidate.folderId === item.folderId ? 1 : 0;
-      const sameAspect = Math.abs(candidateRatio - ratio) < 0.2 ? 1 : 0;
-      return { candidate, score: sharedColors * 3 + sameFolder + sameAspect };
-    })
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 18)
-    .map((entry) => entry.candidate);
-}
   const copyHex = (hex: string) => {
     void navigator.clipboard.writeText(hex);
     playSound("copy");

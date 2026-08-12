@@ -49,7 +49,7 @@ export function useLibraryStore(): LibraryStore {
   const [query, setQueryState] = useState("");
   const [searchMode, setSearchModeState] = useState<SearchMode>("normal");
   const [activeFolderId, setActiveFolderId] = useState(() => localStorage.getItem("koi.activeFolderId") ?? "all");
-  const [gridColumns, setGridColumnsState] = useState(() => readNumber("koi.gridColumns", 6));
+  const [gridColumns, setGridColumnsState] = useState(() => clamp(readNumber("koi.gridColumns", 6), 3, 16));
   const [gridLayout, setGridLayoutState] = useState<GridLayout>(
     () => (localStorage.getItem("koi.gridLayout") === "aligned" ? "aligned" : "packed"),
   );
@@ -160,30 +160,32 @@ export function useLibraryStore(): LibraryStore {
   }, [filteredItems.length]);
 
   const updateItemSize = useCallback((mediaId: string, width: number, height: number) => {
-    setItems((current) =>
-      current.map((item) => {
-        if (item.id !== mediaId || (item.width === width && item.height === height)) return item;
-        return { ...item, width, height };
-      }),
-    );
+    setItems((current) => updateOne(current, mediaId, (item) => (
+      item.width === width && item.height === height ? item : { ...item, width, height }
+    )));
   }, []);
 
   const updateItemSizes = useCallback((measurements: Array<{ mediaId: string; width: number; height: number }>) => {
     if (!measurements.length) return;
     const sizes = new Map(measurements.map((measurement) => [measurement.mediaId, measurement]));
-    setItems((current) =>
-      current.map((item) => {
+    setItems((current) => {
+      let hasChanges = false;
+      const next = current.map((item) => {
         const size = sizes.get(item.id);
         if (!size || (item.width === size.width && item.height === size.height)) return item;
+        hasChanges = true;
         return { ...item, width: size.width, height: size.height };
-      }),
-    );
+      });
+      return hasChanges ? next : current;
+    });
   }, []);
 
   const saveMediaIndex = useCallback(async (mediaId: string, dominantColors: string[], colorNames: string[]) => {
-    setItems((current) =>
-      current.map((item) => (item.id === mediaId ? { ...item, dominantColors, colorNames } : item)),
-    );
+    setItems((current) => updateOne(current, mediaId, (item) => (
+      equalStrings(item.dominantColors, dominantColors) && equalStrings(item.colorNames, colorNames)
+        ? item
+        : { ...item, dominantColors, colorNames }
+    )));
     try {
       await invoke("save_media_index", { mediaId, dominantColors, colorNames });
     } catch {
@@ -192,9 +194,9 @@ export function useLibraryStore(): LibraryStore {
   }, []);
 
   const saveTags = useCallback(async (mediaId: string, tags: string[]) => {
-    setItems((current) =>
-      current.map((item) => (item.id === mediaId ? { ...item, tags } : item)),
-    );
+    setItems((current) => updateOne(current, mediaId, (item) => (
+      equalStrings(item.tags, tags) ? item : { ...item, tags }
+    )));
     try {
       await invoke("save_tags", { mediaId, tags });
     } catch (err) {
@@ -257,7 +259,7 @@ export function useLibraryStore(): LibraryStore {
       setSelectedIndexState(0);
     },
     setGridColumns: (columns) => {
-      const next = clamp(columns, 4, 16);
+      const next = clamp(columns, 3, 16);
       localStorage.setItem("koi.gridColumns", String(next));
       setGridColumnsState(next);
     },
@@ -296,4 +298,23 @@ function clamp(value: number, min: number, max: number) {
 function readNumber(key: string, fallback: number) {
   const value = Number(localStorage.getItem(key));
   return Number.isFinite(value) ? value : fallback;
+}
+
+function updateOne(
+  items: MediaItem[],
+  mediaId: string,
+  update: (item: MediaItem) => MediaItem,
+) {
+  const index = items.findIndex((item) => item.id === mediaId);
+  if (index < 0) return items;
+  const item = items[index];
+  const updated = update(item);
+  if (updated === item) return items;
+  const next = items.slice();
+  next[index] = updated;
+  return next;
+}
+
+function equalStrings(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }

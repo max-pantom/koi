@@ -180,8 +180,9 @@ button:focus:not(:focus-visible) {
   z-index: 7;
   width: 116px;
   height: 40px;
-  background: #ffffff;
+  background: transparent;
   opacity: 1;
+  pointer-events: none;
   visibility: visible;
 }
 
@@ -194,12 +195,13 @@ button:focus:not(:focus-visible) {
 .app.is-dark .sidebar-reveal-chrome {
   --sidebar-divider: #343432;
   --sidebar-secondary: #cfcfc9;
-  background: #111111;
+  background: transparent;
 }
 
 .sidebar-reveal {
   position: absolute;
   inset: 6px auto auto 78px;
+  pointer-events: auto;
 }
 
 .sidebar-count.is-loading::before {
@@ -445,7 +447,7 @@ button:focus:not(:focus-visible) {
 
 .thumbnail-presets {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px;
   padding: 3px;
   border-radius: 10px;
@@ -558,15 +560,11 @@ button:focus:not(:focus-visible) {
   height: 40px;
 }
 
-.app.is-sidebar-collapsed .workspace-titlebar-drag {
-  inset-inline-start: 116px;
-}
-
 .grid-wrap {
   position: relative;
   height: 100%;
   overflow: auto;
-  padding: 44px 18px 44px;
+  padding: 44px 12px 40px;
   overscroll-behavior: contain;
 }
 
@@ -581,6 +579,7 @@ button:focus:not(:focus-visible) {
   z-index: 4;
   height: 34px;
   pointer-events: none;
+  background: rgba(255, 255, 255, 0.58);
   -webkit-backdrop-filter: blur(7px);
   backdrop-filter: blur(7px);
 }
@@ -750,6 +749,11 @@ button:focus:not(:focus-visible) {
   animation: focus-pop 280ms cubic-bezier(0.18, 0.92, 0.2, 1.08) both;
 }
 
+.preview-focus .preview-media img {
+  width: 100%;
+  height: 100%;
+}
+
 .preview-layer.is-closing .preview-media img {
   animation: focus-drop 220ms ease both;
 }
@@ -842,48 +846,6 @@ button:focus:not(:focus-visible) {
   transform: scale(0.96);
 }
 
-.similar-toggle {
-  position: absolute;
-  right: 56px;
-  top: 16px;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 7px;
-  color: #555;
-  background: #e9e9e9;
-  font-size: 12px;
-}
-
-.similar-strip {
-  position: absolute;
-  left: 50%;
-  bottom: 54px;
-  display: flex;
-  max-width: min(760px, calc(100vw - 80px));
-  gap: 10px;
-  overflow: auto;
-  padding: 8px;
-  border-radius: 9px;
-  background: #ffffff;
-  box-shadow: inset 0 0 0 1px #ddddda;
-  transform: translateX(-50%);
-}
-
-.similar-strip button {
-  width: 58px;
-  height: 58px;
-  flex: 0 0 auto;
-  padding: 0;
-  border-radius: 6px;
-  background: transparent;
-}
-
-.similar-strip img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
 .modal-layer {
   display: grid;
   place-items: center;
@@ -891,13 +853,13 @@ button:focus:not(:focus-visible) {
 
 .command-menu {
   display: grid;
-  gap: 12px;
-  width: min(430px, calc(100vw - 36px));
-  padding: 14px;
-  border: 1px solid #ececec;
-  border-radius: 8px;
+  gap: 6px;
+  width: min(480px, calc(100vw - 32px));
+  padding: 8px;
+  border: 1px solid #e2e2de;
+  border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 18px 54px #d8d8d3;
+  box-shadow: 0 24px 72px rgba(31, 31, 27, 0.18), 0 2px 10px rgba(31, 31, 27, 0.08);
 }
 
 .panel-head {
@@ -1108,9 +1070,7 @@ button:focus:not(:focus-visible) {
 
 .app.is-dark .preview-close,
 .app.is-dark .preview-nav,
-.app.is-dark .similar-toggle,
 .app.is-dark .missing-toast,
-.app.is-dark .command-head button,
 .app.is-dark .panel-head button,
 .app.is-dark .tagger button {
   color: #cfcfcf;
@@ -1127,11 +1087,14 @@ button:focus:not(:focus-visible) {
   background: #111111;
 }
 
+.app.is-dark .grid-edge-blur {
+  background: rgba(17, 17, 17, 0.62);
+}
+
 .app.is-dark .command-menu,
 .app.is-dark .tagger,
 .app.is-dark .settings-window,
 .app.is-dark .palette-popover,
-.app.is-dark .similar-strip,
 .app.is-dark .context-menu {
   border-color: #3b3b38;
   color: #e8e8e8;
@@ -1140,7 +1103,6 @@ button:focus:not(:focus-visible) {
 }
 
 .app.is-dark .panel-head,
-.app.is-dark .command-head,
 .app.is-dark .tagger h2,
 .app.is-dark .palette-swatches button,
 .app.is-dark .context-title {
@@ -1154,6 +1116,29 @@ button:focus:not(:focus-visible) {
 .app.is-dark .tagger input,
 .app.is-dark .context-menu > button {
   color: #e6e6e6;
+  background: #30302e;
+}
+
+.app.is-dark .command-search {
+  color: #bdbdb7;
+  background: #282827;
+  box-shadow: inset 0 0 0 1px #3b3b38;
+}
+
+.app.is-dark .command-search input {
+  color: #f1f1ed;
+}
+
+.app.is-dark .command-search input::placeholder,
+.app.is-dark .command-empty {
+  color: #aaa9a3;
+}
+
+.app.is-dark .command-list button {
+  background: transparent;
+}
+
+.app.is-dark .command-list button.is-active {
   background: #30302e;
 }
 
@@ -1177,42 +1162,70 @@ button:focus:not(:focus-visible) {
   background: #353533;
 }
 
-.command-head button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  color: #777;
-  background: #eaeaea;
-}
-
-.command-list,
-.shortcut-list {
+.command-search {
   display: grid;
-  gap: 4px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 11px;
+  color: #666661;
+  background: #f3f3f0;
+  box-shadow: inset 0 0 0 1px #e4e4df;
 }
 
-.command-list button,
-.shortcut-list div {
+.command-search input {
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  outline: 0;
+  color: #282826;
+  background: transparent;
+  font-size: 13px;
+}
+
+.command-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.command-search input::placeholder {
+  color: #797973;
+}
+
+.command-list {
+  display: grid;
+  max-height: min(360px, 58vh);
+  gap: 2px;
+  overflow: auto;
+}
+
+.command-list button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 28px;
+  min-height: 36px;
   width: 100%;
-  padding: 0 8px;
-  border-radius: 6px;
-  color: #555;
-  background: #eeeeee;
+  gap: 16px;
+  padding: 0 10px;
+  border-radius: 9px;
+  color: #444440;
+  background: transparent;
   font-size: 12px;
+  text-align: start;
 }
 
-.shortcut-list div {
-  height: 24px;
-  color: #888;
-  background: transparent;
-  font-size: 11px;
+.command-list button.is-active {
+  color: #252523;
+  background: #eeeeea;
+}
+
+.command-empty {
+  margin: 0;
+  padding: 18px 10px;
+  color: #6f6f69;
+  font-size: 12px;
+  text-align: center;
 }
 
 kbd {
@@ -1226,7 +1239,7 @@ kbd {
 
 @media (max-width: 980px) {
   .grid-wrap {
-    padding: 28px 16px 44px;
+    padding: 28px 10px 40px;
   }
 }
 

@@ -7,29 +7,21 @@ export function FocusView({
   item,
   mode,
   isClosing,
-  similarItems,
-  showSimilar,
   showPalette,
   onCopyColor,
   onClose,
   onPrevious,
   onNext,
-  onToggleSimilar,
-  onSelectSimilar,
   onOpenSource,
 }: {
   item: MediaItem;
   mode: "quick" | "focus";
   isClosing: boolean;
-  similarItems: MediaItem[];
-  showSimilar: boolean;
   showPalette: boolean;
   onCopyColor: (hex: string) => void;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
-  onToggleSimilar: () => void;
-  onSelectSimilar: (item: MediaItem) => void;
   onOpenSource: () => void;
 }) {
   const lastWheelAt = useRef(0);
@@ -106,14 +98,6 @@ export function FocusView({
       >
         <ArrowRight size={18} aria-hidden="true" />
       </button>
-      <button
-        className="similar-toggle"
-        type="button"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={onToggleSimilar}
-      >
-        Similar
-      </button>
       <div className="preview-caption">
         <span>{item.sourceTitle || item.name}</span>
         {sourceUrl && (
@@ -130,21 +114,6 @@ export function FocusView({
           </button>
         )}
       </div>
-      {showSimilar && (
-        <div className="similar-strip" onPointerDown={(event) => event.stopPropagation()}>
-          {similarItems.map((similar) => (
-            <button
-              key={similar.id}
-              type="button"
-              onClick={() => onSelectSimilar(similar)}
-              aria-label={`Open ${similar.sourceTitle || similar.name}`}
-              title={similar.sourceTitle || similar.name}
-            >
-              <img src={mediaSrc(similar)} alt="" draggable={false} />
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
