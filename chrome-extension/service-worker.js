@@ -1,3 +1,5 @@
+import { downloadImageWithFallback, downloadTextFile } from "./downloads.js";
+
 const CAPTURE_DIRECTORY = "Koi Captures";
 const IMAGE_MENU_ID = "koi-save-image";
 const PAGE_MENU_ID = "koi-save-page";
@@ -180,25 +182,42 @@ async function downloadCapture({ captureType, imageUrl, page, title }) {
     imageFilename: `${stem}.${extension}`,
   };
 
-  const imageDownloadId = await chrome.downloads.download({
+  const imageDownload = await downloadImageWithFallback({
+    downloads: chrome.downloads,
+    fetchImpl: fetch,
     url: imageUrl,
     filename: imageFilename,
-    conflictAction: "uniquify",
-    saveAs: false,
+    sourcePageUrl: page.pageUrl,
   });
 
-  const sidecarUrl = `data:application/json;charset=utf-8,${encodeURIComponent(`${JSON.stringify(metadata, null, 2)}\n`)}`;
-  const metadataDownloadId = await chrome.downloads.download({
-    url: sidecarUrl,
-    filename: sidecarFilename,
-    conflictAction: "uniquify",
-    saveAs: false,
-  });
+  let metadataDownloadId;
+  try {
+    metadataDownloadId = await downloadTextFile({
+      downloads: chrome.downloads,
+      text: `${JSON.stringify(metadata, null, 2)}\n`,
+      filename: sidecarFilename,
+    });
+  } catch (error) {
+    throw new Error(`The image was saved, but its source information was not: ${readableError(error)}`);
+  }
 
   await chrome.storage.local.set({
-    lastCapture: { ...metadata, imageFilename, sidecarFilename, imageDownloadId, metadataDownloadId },
+    lastCapture: {
+      ...metadata,
+      imageFilename,
+      sidecarFilename,
+      imageDownloadId: imageDownload.id,
+      metadataDownloadId,
+      usedFallback: imageDownload.usedFallback,
+    },
   });
-  return { imageFilename, sidecarFilename, imageDownloadId, metadataDownloadId };
+  return {
+    imageFilename,
+    sidecarFilename,
+    imageDownloadId: imageDownload.id,
+    metadataDownloadId,
+    usedFallback: imageDownload.usedFallback,
+  };
 }
 
 async function readPage(tabId, fallback) {

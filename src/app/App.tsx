@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -8,7 +8,7 @@ import { MediaContextMenu } from "../components/MediaContextMenu";
 import { MediaGrid } from "../components/MediaGrid";
 import { SettingsWindow } from "../components/SettingsWindow";
 import { TagEditor } from "../components/TagEditor";
-import { TopBar } from "../components/TopBar";
+import { Sidebar } from "../components/Sidebar";
 import { mediaSrc } from "../lib/media";
 import { areSoundsEnabled, getSoundVolume, playSound, setSoundVolume, setSoundsEnabled } from "../lib/sound";
 import type { MediaItem } from "../lib/types";
@@ -24,6 +24,7 @@ export function App() {
   const [isTagEditorOpen, setIsTagEditorOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => localStorage.getItem("koi.sidebar") !== "closed");
   const [isDark, setIsDark] = useState(() => localStorage.getItem("koi.theme") === "dark");
   const [soundsEnabled, setSoundsEnabledState] = useState(() => areSoundsEnabled());
   const [soundVolume, setSoundVolumeState] = useState(() => getSoundVolume());
@@ -41,6 +42,11 @@ export function App() {
     store.activeFolderId === "all"
       ? undefined
       : store.folders.find((folder) => folder.id === store.activeFolderId);
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of store.items) counts.set(item.folderId, (counts.get(item.folderId) ?? 0) + 1);
+    return counts;
+  }, [store.items]);
 
   useEffect(() => {
     void store.loadLibrary();
@@ -209,12 +215,25 @@ export function App() {
 
   const missingCount = store.items.filter((item) => item.missing).length;
 
+  const setSidebarOpen = (isOpen: boolean) => {
+    localStorage.setItem("koi.sidebar", isOpen ? "open" : "closed");
+    setIsSidebarOpen(isOpen);
+    if (!isOpen && isSearchOpen) {
+      store.setQuery("");
+      setIsSearchOpen(false);
+    }
+  };
+
+  const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
+
   const commands = [
     { id: "add-folder", label: "Add folder", shortcut: "Cmd O", run: () => void store.addFolder().then(() => playSound("folder_added")) },
     { id: "search", label: "Search", shortcut: "Cmd F", run: () => {
+      setSidebarOpen(true);
       setIsSearchOpen(true);
       playSound("search_open");
     } },
+    { id: "toggle-sidebar", label: isSidebarOpen ? "Hide sidebar" : "Show sidebar", shortcut: "Ctrl Cmd S", run: toggleSidebar },
     { id: "all-folders", label: "Show all folders", shortcut: "All", run: () => store.setActiveFolderId("all") },
     { id: "current-folder", label: "Show current folder", shortcut: "Folder", run: () => store.selectedItem && store.setActiveFolderId(store.selectedItem.folderId) },
     { id: "rescan", label: "Rescan", shortcut: "Cmd R", run: () => void store.rescan().then(() => playSound("folder_added")) },
@@ -239,9 +258,11 @@ export function App() {
       playSound("command_open");
     },
     openSearch: () => {
+      setSidebarOpen(true);
       setIsSearchOpen(true);
       playSound("search_open");
     },
+    toggleSidebar,
     closeLayer,
     editTags,
     showPalette: openPalette,
@@ -325,9 +346,11 @@ export function App() {
         playSound("command_open");
       }
       if (id === "search") {
+        setSidebarOpen(true);
         setIsSearchOpen(true);
         playSound("search_open");
       }
+      if (id === "toggle-sidebar") toggleSidebar();
       if (id === "command-menu") {
         setIsCommandOpen(true);
         playSound("command_open");
@@ -375,23 +398,30 @@ export function App() {
   }, []);
 
   return (
-    <main className={`${isFocusOpen ? "app is-previewing" : "app"}${isDark ? " is-dark" : ""}`}>
-      <TopBar
-        folder={activeFolder}
+    <main className={`${isFocusOpen ? "app is-previewing" : "app"}${isDark ? " is-dark" : ""}${isSidebarOpen ? "" : " is-sidebar-collapsed"}`}>
+      <Sidebar
         folders={store.folders}
         activeFolderId={store.activeFolderId}
+        folderCounts={folderCounts}
         gridColumns={store.gridColumns}
         searchMode={store.searchMode}
-        total={store.filteredItems.length}
+        total={store.items.length}
+        resultCount={store.filteredItems.length}
         isLoading={store.isLoading}
         isSearchOpen={isSearchOpen}
+        isOpen={isSidebarOpen}
         query={store.query}
         onAddFolder={() => void store.addFolder()}
         onSelectFolder={store.setActiveFolderId}
         onGridColumnsChange={store.setGridColumns}
         onSearchModeChange={store.setSearchMode}
-        onToggleSearch={() => setIsSearchOpen((value) => !value)}
+        onToggleSearch={() => {
+          if (isSearchOpen) store.setQuery("");
+          setIsSearchOpen((value) => !value);
+        }}
         onQueryChange={store.setQuery}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onToggle={toggleSidebar}
         searchRef={searchRef}
       />
 

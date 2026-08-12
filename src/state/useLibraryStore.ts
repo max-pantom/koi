@@ -78,7 +78,14 @@ export function useLibraryStore(): LibraryStore {
     setIsLoading(true);
     setError("");
     try {
+      let captureFolderError = "";
+      try {
+        await invoke<Folder>("ensure_capture_folder");
+      } catch (err) {
+        captureFolderError = `Koi Capture cannot read Downloads. Allow folder access, then choose Rescan. ${readError(err)}`;
+      }
       setLibrary(await invoke<LibraryState>("get_library"));
+      if (captureFolderError) setError(captureFolderError);
     } catch (err) {
       setError(readError(err));
     } finally {

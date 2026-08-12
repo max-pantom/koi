@@ -3,6 +3,7 @@ node_modules/
 
 # Frontend build output
 dist/
+releases/
 
 # Tauri/Rust build output
 src-tauri/target/

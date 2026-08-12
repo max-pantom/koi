@@ -4,6 +4,7 @@ type KeyboardActions = {
   addFolder: () => void;
   openCommandMenu: () => void;
   openSearch: () => void;
+  toggleSidebar: () => void;
   closeLayer: () => void;
   editTags: () => void;
   showPalette: () => void;
@@ -44,6 +45,7 @@ export function useKeyboard(actions: KeyboardActions) {
       if (event.metaKey && key === "o") return run(event, actions.addFolder);
       if (event.metaKey && key === "k") return run(event, actions.openCommandMenu);
       if (event.metaKey && key === "f") return run(event, actions.openSearch);
+      if (event.metaKey && event.ctrlKey && key === "s") return run(event, actions.toggleSidebar);
       if (event.metaKey && event.shiftKey && key === "r") return run(event, actions.revealInFinder);
       if (event.metaKey && event.shiftKey && key === "c") return run(event, actions.copyPath);
       if (event.metaKey && event.altKey && key === "c") return run(event, actions.copyName);

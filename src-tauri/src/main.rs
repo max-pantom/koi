@@ -20,10 +20,13 @@ fn main() {
             commands::save_tags,
             commands::save_media_index,
             commands::reconnect_folder,
-            commands::get_library
+            commands::get_library,
+            commands::ensure_capture_folder
         ])
         .setup(|app| {
-            let _ = commands::ensure_capture_folder(app.handle());
+            if let Err(error) = commands::ensure_capture_folder(app.handle().clone()) {
+                eprintln!("Koi Capture folder unavailable: {error}");
+            }
             watcher::start_existing_watchers(app.handle().clone());
             Ok(())
         })

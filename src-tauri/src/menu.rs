@@ -6,7 +6,7 @@ use tauri::{
 pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let about = AboutMetadata {
         name: Some("Koi".into()),
-        version: Some("0.1.0".into()),
+        version: Some(env!("CARGO_PKG_VERSION").into()),
         copyright: Some("Copyright © 2026 Koi".into()),
         comments: Some("A tiny local moodboard for folders.".into()),
         ..Default::default()
@@ -74,6 +74,13 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         &[
             &MenuItem::with_id(app, "search", "Search", true, Some("Cmd+F"))?,
             &MenuItem::with_id(app, "command-menu", "Command Menu", true, Some("Cmd+K"))?,
+            &MenuItem::with_id(
+                app,
+                "toggle-sidebar",
+                "Toggle Sidebar",
+                true,
+                Some("Cmd+Ctrl+S"),
+            )?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "grid-view", "Grid View", true, Some("Cmd+1"))?,
             &MenuItem::with_id(app, "focus-view", "Focus View", true, Some("Cmd+2"))?,

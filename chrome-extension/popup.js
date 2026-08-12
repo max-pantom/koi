@@ -80,7 +80,9 @@ async function runCapture(button, message) {
   try {
     const result = await chrome.runtime.sendMessage(message);
     if (!result?.ok) throw new Error(result?.error || "Unable to save this capture.");
-    setStatus("Download started in Downloads/Koi Captures.");
+    setStatus(result.usedFallback
+      ? "Saved image and source info. Koi retried a blocked download."
+      : "Saved image and source info to Downloads/Koi Captures.");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
   } finally {

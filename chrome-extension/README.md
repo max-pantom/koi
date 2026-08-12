@@ -11,6 +11,8 @@ Koi Capture is a local-first Manifest V3 extension. It saves each image or page 
 
 Use the popup to save a page's Open Graph preview or one of its large images. You can also right-click an image or page and select the Koi action.
 
+Koi waits for Chrome to confirm that both files finished downloading. If a website or CDN interrupts a direct image download, Koi retries through the extension's authenticated fetch permission and reports a precise error if that also fails.
+
 ## Capture format
 
 A capture is a pair with the same filename stem:

@@ -5,7 +5,8 @@ use crate::{
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 
-pub fn ensure_capture_folder(app: &AppHandle) -> Result<(), String> {
+#[tauri::command]
+pub fn ensure_capture_folder(app: AppHandle) -> Result<Folder, String> {
     let folder_path = app
         .path()
         .download_dir()
@@ -13,9 +14,11 @@ pub fn ensure_capture_folder(app: &AppHandle) -> Result<(), String> {
         .join("Koi Captures");
     fs::create_dir_all(&folder_path).map_err(|error| error.to_string())?;
     let folder = scanner::folder_from_path(&folder_path);
-    db::save_folder(app, &folder)?;
+    db::save_folder(&app, &folder)?;
     let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
-    db::save_media(app, &items)
+    db::save_media(&app, &items)?;
+    crate::watcher::watch_folder(app, folder.id.clone(), folder_path);
+    Ok(folder)
 }
 
 #[tauri::command]
