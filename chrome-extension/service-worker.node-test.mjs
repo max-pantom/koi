@@ -19,3 +19,9 @@ test("service worker starts and registers its Chrome listeners", async () => {
   assert.equal(registered.every(([, callback]) => typeof callback === "function"), true);
   delete globalThis.chrome;
 });
+
+test("service worker independently upgrades X thumbnails from old tabs", async () => {
+  const source = await import("node:fs/promises").then((fs) => fs.readFile(new URL("./service-worker.js", import.meta.url), "utf8"));
+  assert.match(source, /platformOriginalUrl\(isDownloadableUrl\(resolved\?\.imageUrl\)/);
+  assert.match(source, /url\.searchParams\.set\("name", "orig"\)/);
+});

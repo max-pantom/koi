@@ -295,15 +295,29 @@ async function resolveContextImage(capture) {
 }
 
 async function resolveImage(tabId, imageUrl, sourceLinkUrl) {
-  if (typeof tabId !== "number") return { imageUrl, sourceLinkUrl: sourceLinkUrl || "" };
+  const originalFallback = platformOriginalUrl(imageUrl);
+  if (typeof tabId !== "number") return { imageUrl: originalFallback, sourceLinkUrl: sourceLinkUrl || "" };
   try {
     const resolved = await chrome.tabs.sendMessage(tabId, { type: "KOI_RESOLVE_IMAGE", imageUrl });
     return {
-      imageUrl: isDownloadableUrl(resolved?.imageUrl) ? resolved.imageUrl : imageUrl,
+      imageUrl: platformOriginalUrl(isDownloadableUrl(resolved?.imageUrl) ? resolved.imageUrl : originalFallback),
       sourceLinkUrl: resolved?.sourceLinkUrl || sourceLinkUrl || "",
     };
   } catch {
-    return { imageUrl, sourceLinkUrl: sourceLinkUrl || "" };
+    return { imageUrl: originalFallback, sourceLinkUrl: sourceLinkUrl || "" };
+  }
+}
+
+function platformOriginalUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.hostname !== "pbs.twimg.com") return url.href;
+    if (url.searchParams.has("name")) url.searchParams.set("name", "orig");
+    const profileMatch = url.pathname.match(/^(\/profile_images\/[^/]+\/[^/]+)_\w+(\.[a-z0-9]+)$/i);
+    if (profileMatch) url.pathname = `${profileMatch[1]}${profileMatch[2]}`;
+    return url.href;
+  } catch {
+    return value || "";
   }
 }
 
