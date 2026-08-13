@@ -74,12 +74,12 @@ test("retries an interrupted CDN download through an image data URL", async () =
   assert.match(downloads.calls[1].url, /^data:image\/png;base64,/);
 });
 
-test("waits for the metadata sidecar too", async () => {
+test("waits for the consolidated capture manifest too", async () => {
   const downloads = createDownloads([{ state: "complete" }]);
   const id = await downloadTextFile({
     downloads,
     text: "{\"sourceUrl\":\"https://example.com/image.jpg\"}\n",
-    filename: "Koi Captures/reference.koi.json",
+    filename: "Koi Captures/koi-manifest.json",
     timeoutMs: 100,
   });
 

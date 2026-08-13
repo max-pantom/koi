@@ -138,6 +138,18 @@ pub fn save_media_index(
     Ok(())
 }
 
+pub fn media_by_id(app: &AppHandle, media_id: &str) -> Result<Option<MediaItem>, String> {
+    let conn = connect(app)?;
+    read_item(&conn, media_id)
+}
+
+pub fn delete_media(app: &AppHandle, media_id: &str) -> Result<(), String> {
+    let conn = connect(app)?;
+    conn.execute("delete from media where id = ?1", params![media_id])
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 pub fn reconnect_folder(
     app: &AppHandle,
     folder_id: &str,
@@ -367,6 +379,12 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|error| error.to_string())
+}
+
+fn read_item(conn: &Connection, media_id: &str) -> Result<Option<MediaItem>, String> {
+    Ok(read_items(conn)?
+        .into_iter()
+        .find(|item| item.id == media_id))
 }
 
 struct ExistingMedia {

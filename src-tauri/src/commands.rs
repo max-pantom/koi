@@ -2,8 +2,8 @@ use crate::{
     db,
     scanner::{self, Folder, LibraryState, MediaItem},
 };
-use std::{fs, path::PathBuf};
-use tauri::{AppHandle, Manager};
+use std::{fs, io::Cursor, path::PathBuf};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[tauri::command]
 pub fn ensure_capture_folder(app: AppHandle) -> Result<Folder, String> {
@@ -119,4 +119,90 @@ pub fn get_library(app: AppHandle) -> Result<LibraryState, String> {
         }
     }
     db::get_library(&app)
+}
+
+#[tauri::command]
+pub fn delete_media(app: AppHandle, media_id: String) -> Result<(), String> {
+    let item = db::media_by_id(&app, &media_id)?
+        .ok_or_else(|| "That image is no longer in Koi.".to_string())?;
+    let media_path = PathBuf::from(&item.path);
+    if media_path.is_file() {
+        move_to_trash(&media_path)?;
+    }
+    if let (Some(parent), Some(filename)) = (
+        media_path.parent(),
+        media_path.file_name().and_then(|name| name.to_str()),
+    ) {
+        if let Err(error) = scanner::remove_capture_metadata(parent, filename) {
+            eprintln!("Koi could not clean capture metadata after delete: {error}");
+        }
+        for sidecar in [
+            media_path.with_extension("koi.json"),
+            PathBuf::from(format!("{}.koi.json", media_path.to_string_lossy())),
+        ] {
+            if sidecar.is_file() {
+                let _ = move_to_trash(&sidecar);
+            }
+        }
+    }
+    db::delete_media(&app, &media_id)?;
+    let _ = app.emit("library-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn copy_media_image(app: AppHandle, media_id: String) -> Result<(), String> {
+    let item = db::media_by_id(&app, &media_id)?
+        .ok_or_else(|| "That image is no longer in Koi.".to_string())?;
+    let path = PathBuf::from(item.path);
+    if !path.is_file() {
+        return Err("The original image is missing.".into());
+    }
+
+    let image = image::ImageReader::open(&path)
+        .map_err(|error| format!("Could not open the image: {error}"))?
+        .with_guessed_format()
+        .map_err(|error| format!("Could not read the image format: {error}"))?
+        .decode()
+        .map_err(|error| format!("Could not decode the image: {error}"))?;
+    let mut png = Vec::new();
+    image
+        .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+        .map_err(|error| format!("Could not prepare the image for copying: {error}"))?;
+    write_png_to_clipboard(&png)
+}
+
+#[cfg(target_os = "macos")]
+fn write_png_to_clipboard(png: &[u8]) -> Result<(), String> {
+    use objc2_app_kit::{NSPasteboard, NSPasteboardTypePNG};
+    use objc2_foundation::NSData;
+
+    let data = unsafe { NSData::dataWithBytes_length(png.as_ptr().cast(), png.len()) };
+    let pasteboard = NSPasteboard::generalPasteboard();
+    pasteboard.clearContents();
+    let png_type = unsafe { NSPasteboardTypePNG };
+    pasteboard
+        .setData_forType(Some(&data), png_type)
+        .then_some(())
+        .ok_or_else(|| "macOS did not accept the image on the clipboard.".to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn write_png_to_clipboard(_png: &[u8]) -> Result<(), String> {
+    Err("Copying images is currently available on macOS.".into())
+}
+
+#[cfg(target_os = "macos")]
+fn move_to_trash(path: &std::path::Path) -> Result<(), String> {
+    use objc2_foundation::{NSFileManager, NSString, NSURL};
+    let path = NSString::from_str(&path.to_string_lossy());
+    let url = NSURL::fileURLWithPath(&path);
+    NSFileManager::defaultManager()
+        .trashItemAtURL_resultingItemURL_error(&url, None)
+        .map_err(|error| format!("Could not move the file to Trash: {error}"))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn move_to_trash(_path: &std::path::Path) -> Result<(), String> {
+    Err("Moving files to Trash is currently available on macOS.".into())
 }

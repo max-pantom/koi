@@ -19,11 +19,12 @@ test("reads folder choices without exposing path data", async () => {
   assert.equal("path" in folders[0], false);
 });
 
-test("routes a completed image and metadata pair", async () => {
+test("routes a completed image and its manifest metadata", async () => {
+  const metadata = { imageFilename: "capture.jpg", sourceUrl: "https://example.com/capture.jpg" };
   const result = await routeCaptureToKoi({
     destinationFolderId: "folder-1",
     imageFilename: "capture.jpg",
-    sidecarFilename: "capture.koi.json",
+    metadata,
     fetchImpl: async (url, options) => {
       assert.equal(url, `${KOI_BRIDGE_URL}/captures/route`);
       assert.equal(options.method, "POST");
@@ -31,23 +32,23 @@ test("routes a completed image and metadata pair", async () => {
       assert.deepEqual(JSON.parse(options.body), {
         destinationFolderId: "folder-1",
         imageFilename: "capture.jpg",
-        sidecarFilename: "capture.koi.json",
+        metadata,
       });
       return {
         ok: true,
-        async json() { return { routed: true, folderName: "References" }; },
+        async json() { return { routed: true, folderName: "References", isCaptureInbox: false }; },
       };
     },
   });
 
-  assert.deepEqual(result, { routed: true, folderName: "References" });
+  assert.deepEqual(result, { routed: true, folderName: "References", isCaptureInbox: false });
 });
 
 test("surfaces a desktop routing failure", async () => {
   await assert.rejects(() => routeCaptureToKoi({
     destinationFolderId: "missing",
     imageFilename: "capture.jpg",
-    sidecarFilename: "capture.koi.json",
+    metadata: { imageFilename: "capture.jpg" },
     fetchImpl: async () => ({
       ok: false,
       async json() { return { error: "That destination folder is no longer in Koi." }; },

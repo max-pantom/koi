@@ -1,7 +1,7 @@
 use image::GenericImageView;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::hash_map::DefaultHasher,
+    collections::{hash_map::DefaultHasher, BTreeMap},
     fs,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
@@ -58,6 +58,7 @@ const MEDIA_EXTENSIONS: &[&str] = &[
     "apng", "avif", "aviff", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif",
     "tiff", "webp",
 ];
+pub const CAPTURE_MANIFEST_FILENAME: &str = "koi-manifest.json";
 
 pub fn folder_from_path(path: &Path) -> Folder {
     Folder {
@@ -89,6 +90,8 @@ pub fn scan_folder_path(folder_path: &str, folder_id: &str) -> Result<Vec<MediaI
 }
 
 fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(), String> {
+    migrate_legacy_sidecars(dir)?;
+    let capture_manifest = read_capture_manifest(dir);
     let entries = fs::read_dir(dir).map_err(|error| format!("Could not read folder: {error}"))?;
 
     for entry in entries {
@@ -122,7 +125,7 @@ fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(
             .to_lowercase();
         let absolute = path.to_string_lossy().to_string();
         let image_metadata = media_metadata(&path);
-        let capture_metadata = capture_metadata(&path);
+        let capture_metadata = capture_metadata(&path, &capture_manifest);
 
         items.push(MediaItem {
             id: stable_id(&absolute),
@@ -156,9 +159,9 @@ fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(
     Ok(())
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct CaptureMetadata {
+pub struct CaptureMetadata {
     capture_type: Option<String>,
     source_url: Option<String>,
     source_final_url: Option<String>,
@@ -172,7 +175,26 @@ struct CaptureMetadata {
     captured_at: Option<String>,
 }
 
-fn capture_metadata(media_path: &Path) -> CaptureMetadata {
+#[derive(Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CaptureManifest {
+    schema_version: u8,
+    captures: BTreeMap<String, serde_json::Value>,
+}
+
+fn capture_metadata(
+    media_path: &Path,
+    manifest: &BTreeMap<String, serde_json::Value>,
+) -> CaptureMetadata {
+    if let Some(metadata) = media_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| manifest.get(name))
+        .and_then(|value| serde_json::from_value::<CaptureMetadata>(value.clone()).ok())
+    {
+        return metadata;
+    }
+
     let primary = media_path.with_extension("koi.json");
     let appended = PathBuf::from(format!("{}.koi.json", media_path.to_string_lossy()));
 
@@ -184,6 +206,127 @@ fn capture_metadata(media_path: &Path) -> CaptureMetadata {
                 .and_then(|content| serde_json::from_str::<CaptureMetadata>(&content).ok())
         })
         .unwrap_or_default()
+}
+
+fn read_capture_manifest(dir: &Path) -> BTreeMap<String, serde_json::Value> {
+    fs::read_to_string(dir.join(CAPTURE_MANIFEST_FILENAME))
+        .ok()
+        .and_then(|content| serde_json::from_str::<CaptureManifest>(&content).ok())
+        .map(|manifest| manifest.captures)
+        .unwrap_or_default()
+}
+
+pub fn upsert_capture_metadata(
+    dir: &Path,
+    image_filename: &str,
+    metadata: serde_json::Value,
+) -> Result<(), String> {
+    let mut captures = read_capture_manifest(dir);
+    captures.insert(image_filename.to_string(), metadata);
+    write_capture_manifest(dir, captures)
+}
+
+pub fn remove_capture_metadata(dir: &Path, image_filename: &str) -> Result<(), String> {
+    let mut captures = read_capture_manifest(dir);
+    if captures.remove(image_filename).is_none() {
+        return Ok(());
+    }
+    if captures.is_empty() {
+        let manifest_path = dir.join(CAPTURE_MANIFEST_FILENAME);
+        if manifest_path.is_file() {
+            fs::remove_file(manifest_path).map_err(|error| error.to_string())?;
+        }
+        return Ok(());
+    }
+    write_capture_manifest(dir, captures)
+}
+
+fn write_capture_manifest(
+    dir: &Path,
+    captures: BTreeMap<String, serde_json::Value>,
+) -> Result<(), String> {
+    let manifest = CaptureManifest {
+        schema_version: 1,
+        captures,
+    };
+    let content = serde_json::to_string_pretty(&manifest).map_err(|error| error.to_string())?;
+    let manifest_path = dir.join(CAPTURE_MANIFEST_FILENAME);
+    let temporary_path = dir.join(".koi-manifest.tmp");
+    fs::write(&temporary_path, format!("{content}\n")).map_err(|error| error.to_string())?;
+    fs::rename(&temporary_path, &manifest_path).map_err(|error| {
+        let _ = fs::remove_file(&temporary_path);
+        error.to_string()
+    })
+}
+
+fn migrate_legacy_sidecars(dir: &Path) -> Result<(), String> {
+    let sidecars = fs::read_dir(dir)
+        .map_err(|error| error.to_string())?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_file()
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with(".koi.json"))
+        })
+        .collect::<Vec<_>>();
+    if sidecars.is_empty() {
+        return Ok(());
+    }
+
+    let mut captures = read_capture_manifest(dir);
+    let mut migrated = Vec::new();
+    for sidecar in sidecars {
+        let Ok(content) = fs::read_to_string(&sidecar) else {
+            continue;
+        };
+        let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) else {
+            continue;
+        };
+        let Some(image_filename) = legacy_image_filename(dir, &sidecar, &metadata) else {
+            continue;
+        };
+        captures.insert(image_filename, metadata);
+        migrated.push(sidecar);
+    }
+    if migrated.is_empty() {
+        return Ok(());
+    }
+
+    write_capture_manifest(dir, captures)?;
+    for sidecar in migrated {
+        fs::remove_file(sidecar).map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+fn legacy_image_filename(
+    dir: &Path,
+    sidecar: &Path,
+    metadata: &serde_json::Value,
+) -> Option<String> {
+    if let Some(filename) = metadata
+        .get("imageFilename")
+        .and_then(serde_json::Value::as_str)
+    {
+        let candidate = dir.join(filename);
+        if candidate.is_file() && is_media_file(&candidate) {
+            return Some(filename.to_string());
+        }
+    }
+
+    let sidecar_name = sidecar.file_name()?.to_str()?;
+    let base = sidecar_name.strip_suffix(".koi.json")?;
+    let appended = dir.join(base);
+    if appended.is_file() && is_media_file(&appended) {
+        return Some(base.to_string());
+    }
+    MEDIA_EXTENSIONS.iter().find_map(|extension| {
+        let filename = format!("{base}.{extension}");
+        dir.join(&filename).is_file().then_some(filename)
+    })
 }
 
 fn is_media_file(path: &Path) -> bool {
@@ -299,7 +442,9 @@ fn nearest_color_name(rgb: (u8, u8, u8)) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::capture_metadata;
+    use super::{
+        capture_metadata, migrate_legacy_sidecars, read_capture_manifest, CAPTURE_MANIFEST_FILENAME,
+    };
     use std::{fs, time::SystemTime};
 
     #[test]
@@ -331,7 +476,9 @@ mod tests {
         )
         .expect("sidecar should be written");
 
-        let metadata = capture_metadata(&media_path);
+        migrate_legacy_sidecars(&directory).expect("sidecar should migrate");
+        let manifest = read_capture_manifest(&directory);
+        let metadata = capture_metadata(&media_path, &manifest);
         assert_eq!(metadata.capture_type.as_deref(), Some("link"));
         assert_eq!(
             metadata.source_page_url.as_deref(),
@@ -350,6 +497,8 @@ mod tests {
             metadata.source_description.as_deref(),
             Some("A captured example page.")
         );
+        assert!(directory.join(CAPTURE_MANIFEST_FILENAME).is_file());
+        assert!(!directory.join("reference.koi.json").exists());
 
         fs::remove_dir_all(directory).expect("temporary directory should be removed");
     }

@@ -19,10 +19,11 @@ type LibraryStore = {
   isLoading: boolean;
   error: string;
   loadLibrary: () => Promise<void>;
-  addFolder: () => Promise<void>;
+  addFolder: () => Promise<boolean>;
   addFolderPath: (path: string) => Promise<void>;
-  rescan: () => Promise<void>;
-  removeSelected: () => void;
+  rescan: () => Promise<boolean>;
+  removeSelected: () => Promise<boolean>;
+  removeItem: (mediaId: string) => Promise<boolean>;
   updateItemSize: (mediaId: string, width: number, height: number) => void;
   updateItemSizes: (measurements: Array<{ mediaId: string; width: number; height: number }>) => void;
   saveMediaIndex: (mediaId: string, dominantColors: string[], colorNames: string[]) => Promise<void>;
@@ -64,8 +65,8 @@ export function useLibraryStore(): LibraryStore {
   }, [activeFolderId, items]);
   const folderNames = useMemo(() => new Map(folders.map((folder) => [folder.id, folder.name])), [folders]);
   const filteredItems = useMemo(
-    () => searchMedia(scopedItems, query, searchMode, folderNames),
-    [folderNames, query, scopedItems, searchMode],
+    () => searchMedia(scopedItems, query, "smart", folderNames),
+    [folderNames, query, scopedItems],
   );
   const selectedItem = filteredItems[Math.min(selectedIndex, Math.max(filteredItems.length - 1, 0))];
 
@@ -99,8 +100,10 @@ export function useLibraryStore(): LibraryStore {
     try {
       await invoke<Folder>("add_folder");
       setLibrary(await invoke<LibraryState>("get_library"));
+      return true;
     } catch (err) {
       setError(readError(err));
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -121,8 +124,7 @@ export function useLibraryStore(): LibraryStore {
 
   const rescan = useCallback(async () => {
     if (!folders.length) {
-      await addFolder();
-      return;
+      return addFolder();
     }
 
     setIsLoading(true);
@@ -132,18 +134,31 @@ export function useLibraryStore(): LibraryStore {
         await invoke<MediaItem[]>("scan_folder", { folderPath: folder.path, folderId: folder.id });
       }
       setLibrary(await invoke<LibraryState>("get_library"));
+      return true;
     } catch (err) {
       setError(readError(err));
+      return false;
     } finally {
       setIsLoading(false);
     }
   }, [addFolder, folders, setLibrary]);
 
-  const removeSelected = useCallback(() => {
-    if (!selectedItem) return;
-    setItems((current) => current.filter((item) => item.id !== selectedItem.id));
-    setSelectedIndexState((index) => Math.min(index, Math.max(filteredItems.length - 2, 0)));
-  }, [filteredItems.length, selectedItem]);
+  const removeItem = useCallback(async (mediaId: string) => {
+    setError("");
+    try {
+      await invoke("delete_media", { mediaId });
+      setItems((current) => current.filter((item) => item.id !== mediaId));
+      setSelectedIndexState((index) => Math.min(index, Math.max(filteredItems.length - 2, 0)));
+      return true;
+    } catch (err) {
+      setError(readError(err));
+      return false;
+    }
+  }, [filteredItems.length]);
+
+  const removeSelected = useCallback(async () => {
+    return selectedItem ? removeItem(selectedItem.id) : false;
+  }, [removeItem, selectedItem]);
 
   const setSelectedIndex = useCallback((index: number) => {
     const next = clamp(index, 0, Math.max(filteredItems.length - 1, 0));
@@ -237,6 +252,7 @@ export function useLibraryStore(): LibraryStore {
     addFolderPath,
     rescan,
     removeSelected,
+    removeItem,
     updateItemSize,
     updateItemSizes,
     saveMediaIndex,

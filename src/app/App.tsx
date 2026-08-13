@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { CommandMenu } from "../components/CommandMenu";
 import { FocusView } from "../components/FocusView";
 import { MediaContextMenu } from "../components/MediaContextMenu";
@@ -9,6 +11,7 @@ import { MediaGrid } from "../components/MediaGrid";
 import { SettingsWindow } from "../components/SettingsWindow";
 import { TagEditor } from "../components/TagEditor";
 import { Sidebar } from "../components/Sidebar";
+import { ToastRegion, type ToastMessage, type ToastTone } from "../components/ToastRegion";
 import { mediaSrc } from "../lib/media";
 import { areSoundsEnabled, getSoundVolume, playSound, setSoundVolume, setSoundsEnabled } from "../lib/sound";
 import type { MediaItem } from "../lib/types";
@@ -28,9 +31,13 @@ export function App() {
   const [isDark, setIsDark] = useState(() => localStorage.getItem("koi.theme") === "dark");
   const [soundsEnabled, setSoundsEnabledState] = useState(() => areSoundsEnabled());
   const [soundVolume, setSoundVolumeState] = useState(() => getSoundVolume());
+  const [showImageTooltips, setShowImageTooltips] = useState(
+    () => localStorage.getItem("koi.image-name-tooltips") !== "hidden",
+  );
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: MediaItem } | undefined>();
   const [previewMode, setPreviewMode] = useState<"none" | "quick" | "focus">("none");
   const [isPreviewClosing, setIsPreviewClosing] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [route, setRoute] = useState(initialRoute);
   const searchRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
@@ -93,6 +100,37 @@ export function App() {
     if (isTagEditorOpen) tagInputRef.current?.focus();
   }, [isTagEditorOpen]);
 
+  useEffect(() => {
+    if (!store.error) return;
+    showToast(store.error, "error", 5200);
+    store.clearError();
+  }, [store.error]);
+
+  useEffect(() => {
+    setToasts((current) => {
+      const withoutProgress = current.filter((toast) => toast.id !== "library-progress");
+      return store.isLoading
+        ? [...withoutProgress, { id: "library-progress", message: "Scanning library…", tone: "progress" }]
+        : withoutProgress;
+    });
+  }, [store.isLoading]);
+
+  const previousItemIds = useRef<Set<string>>();
+  const hasSeenLibraryLoad = useRef(false);
+  useEffect(() => {
+    if (store.isLoading) {
+      hasSeenLibraryLoad.current = true;
+      return;
+    }
+    const nextIds = new Set(store.items.map((item) => item.id));
+    const previous = previousItemIds.current;
+    if (!previous && !hasSeenLibraryLoad.current) return;
+    previousItemIds.current = nextIds;
+    if (!previous) return;
+    const added = store.items.filter((item) => !previous.has(item.id)).length;
+    if (added > 0) showToast(added === 1 ? "New image added" : `${added} new images added`, "added");
+  }, [store.isLoading, store.items]);
+
   const closePreview = () => {
     if (previewMode === "none") return;
     setIsPreviewClosing(true);
@@ -149,19 +187,23 @@ export function App() {
   };
 
   const copyImage = async () => {
-    if (!store.selectedItem || !("ClipboardItem" in window)) {
-      copyPath();
-      return;
-    }
+    if (!store.selectedItem) return;
 
     try {
-      const response = await fetch(mediaSrc(store.selectedItem));
-      const blob = await response.blob();
-      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      await invoke("copy_media_image", { mediaId: store.selectedItem.id });
+      showToast("Image copied", "success");
       playSound("copy");
-    } catch {
-      copyPath();
+    } catch (error) {
+      showToast(`Couldn’t copy image · ${String(error)}`, "error", 5200);
     }
+  };
+
+  const toggleImageTooltips = () => {
+    setShowImageTooltips((current) => {
+      const next = !current;
+      localStorage.setItem("koi.image-name-tooltips", next ? "shown" : "hidden");
+      return next;
+    });
   };
 
   const editTags = () => {
@@ -213,43 +255,65 @@ export function App() {
   const setSidebarOpen = (isOpen: boolean) => {
     localStorage.setItem("koi.sidebar", isOpen ? "open" : "closed");
     setIsSidebarOpen(isOpen);
-    if (!isOpen && isSearchOpen) {
-      store.setQuery("");
-      setIsSearchOpen(false);
-    }
   };
 
   const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
 
+  const showToast = (message: string, tone: ToastTone, duration = 2600) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setToasts((current) => [...current.filter((toast) => toast.tone !== "progress"), { id, message, tone }].slice(-3));
+    if (duration > 0) window.setTimeout(() => setToasts((current) => current.filter((toast) => toast.id !== id)), duration);
+    return id;
+  };
+
+  const runLibraryAction = async (action: () => Promise<boolean>, success: string, tone: ToastTone = "success") => {
+    if (await action()) showToast(success, tone);
+  };
+
+  const deleteItem = async (item = store.selectedItem) => {
+    if (!item) return;
+    const approved = await confirm(`Move “${item.sourceTitle || item.name}” to Trash?`, {
+      title: "Delete image",
+      kind: "warning",
+      okLabel: "Move to Trash",
+      cancelLabel: "Cancel",
+    });
+    if (!approved) return;
+    closePreview();
+    if (await store.removeItem(item.id)) showToast("Moved to Trash", "delete");
+    playSound("command_open");
+  };
+
   const startWindowDrag = (event: PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement;
-    if (target.closest("button, input, select, textarea, a, [role='slider'], .tile, .preview-layer, .modal-layer")) return;
+    if (target.closest("button, input, select, textarea, a, [role='slider'], .tile, .preview-layer, .modal-layer, .settings-layer")) return;
     void getCurrentWindow().startDragging();
   };
 
   const commands = [
-    { id: "add-folder", label: "Add folder…", shortcut: "⌘O", keywords: "library import", run: () => void store.addFolder().then(() => playSound("folder_added")) },
+    { id: "add-folder", label: "Add folder…", shortcut: "⌘O", keywords: "library import", run: () => void runLibraryAction(store.addFolder, "Folder added", "added") },
     { id: "search", label: "Search library", shortcut: "⌘F", keywords: "find images", run: () => {
       setSidebarOpen(true);
       setIsSearchOpen(true);
       playSound("search_open");
     } },
     { id: "toggle-sidebar", label: isSidebarOpen ? "Hide sidebar" : "Show sidebar", shortcut: "⌃⌘S", keywords: "panel", run: toggleSidebar },
-    { id: "rescan", label: "Rescan folders", shortcut: "⌘R", keywords: "refresh reload", run: () => void store.rescan().then(() => playSound("folder_added")) },
+    { id: "rescan", label: "Rescan folders", shortcut: "⌘R", keywords: "refresh reload", run: () => void runLibraryAction(store.rescan, "Library is up to date") },
     ...(store.inboxFolderId ? [{ id: "open-inbox", label: "Open capture inbox", shortcut: "⇧⌘I", keywords: "extension saves", run: () => store.setActiveFolderId(store.inboxFolderId) }] : []),
     ...(store.selectedItem ? [
       { id: "copy-image", label: "Copy image", shortcut: "⌘C", keywords: "clipboard", run: () => void copyImage() },
       { id: "reveal", label: "Reveal image in Finder", shortcut: "⇧⌘R", keywords: "file locate", run: revealSelected },
       { id: "palette", label: "Show color palette", shortcut: "P", keywords: "colors", run: openPalette },
       { id: "edit-tags", label: "Edit image tags", shortcut: "T", keywords: "metadata labels", run: editTags },
+      { id: "delete", label: "Move image to Trash", shortcut: "⌫", keywords: "delete remove", run: () => void deleteItem() },
     ] : []),
     { id: "toggle-dark", label: isDark ? "Use light appearance" : "Use dark appearance", shortcut: "M", keywords: "theme mode", run: toggleDarkMode },
     { id: "settings", label: "Open settings", shortcut: "⌘,", keywords: "preferences sound layout", run: () => setIsSettingsOpen(true) },
   ];
 
   useKeyboard({
-    addFolder: () => void store.addFolder().then(() => playSound("folder_added")),
+    addFolder: () => void runLibraryAction(store.addFolder, "Folder added", "added"),
     openCommandMenu: () => {
       setIsCommandOpen(true);
       playSound("command_open");
@@ -294,10 +358,9 @@ export function App() {
       store.jumpToBottom();
       playSound("select");
     },
-    rescan: () => void store.rescan().then(() => playSound("folder_added")),
+    rescan: () => void runLibraryAction(store.rescan, "Library is up to date"),
     removeSelected: () => {
-      store.removeSelected();
-      playSound("command_open");
+      void deleteItem();
     },
     showGrid: () => {
       setPreviewMode("none");
@@ -330,8 +393,8 @@ export function App() {
   });
 
   menuEventHandlerRef.current = (id) => {
-      if (id === "add-folder") void store.addFolder().then(() => playSound("folder_added"));
-      if (id === "rescan") void store.rescan().then(() => playSound("folder_added"));
+      if (id === "add-folder") void runLibraryAction(store.addFolder, "Folder added", "added");
+      if (id === "rescan") void runLibraryAction(store.rescan, "Library is up to date");
       if (id === "open-inbox") {
         if (store.inboxFolderId) store.setActiveFolderId(store.inboxFolderId);
         else setIsCommandOpen(true);
@@ -399,21 +462,16 @@ export function App() {
         activeFolderId={store.activeFolderId}
         folderCounts={folderCounts}
         gridColumns={store.gridColumns}
-        searchMode={store.searchMode}
         total={store.items.length}
         resultCount={store.filteredItems.length}
         isLoading={store.isLoading}
         isSearchOpen={isSearchOpen}
         isOpen={isSidebarOpen}
         query={store.query}
-        onAddFolder={() => void store.addFolder()}
+        onAddFolder={() => void runLibraryAction(store.addFolder, "Folder added", "added")}
         onSelectFolder={store.setActiveFolderId}
         onGridColumnsChange={store.setGridColumns}
-        onSearchModeChange={store.setSearchMode}
-        onToggleSearch={() => {
-          if (isSearchOpen) store.setQuery("");
-          setIsSearchOpen((value) => !value);
-        }}
+        onSearchFocusChange={setIsSearchOpen}
         onQueryChange={store.setQuery}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onToggle={toggleSidebar}
@@ -428,7 +486,7 @@ export function App() {
           selectedItem={store.selectedItem}
           isLoading={store.isLoading}
           hasFolders={store.folders.length > 0}
-          onAddFolder={() => void store.addFolder()}
+          onAddFolder={() => void runLibraryAction(store.addFolder, "Folder added", "added")}
           onSelect={store.setSelectedIndex}
           onOpen={(index) => {
             store.setSelectedIndex(index);
@@ -447,6 +505,7 @@ export function App() {
           onMeasureBatch={store.updateItemSizes}
           gridColumns={store.gridColumns}
           gridLayout={store.gridLayout}
+          showImageTooltips={showImageTooltips}
           onScrollChange={(scrollTop) => localStorage.setItem("koi.scrollTop", String(scrollTop))}
           onStartWindowDrag={startWindowDrag}
         />
@@ -454,15 +513,11 @@ export function App() {
         <div className="grid-edge-blur is-bottom" aria-hidden="true" />
       </section>
 
-      {store.error && (
-        <button className="toast" type="button" onClick={store.clearError}>
-          {store.error}
-        </button>
-      )}
+      <ToastRegion toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} />
 
       {missingCount > 0 && (
         <button className="missing-toast" type="button" onClick={() => resolveFolder()}>
-          {missingCount} missing
+          {missingCount} missing · Locate folder
         </button>
       )}
 
@@ -488,6 +543,7 @@ export function App() {
           soundsEnabled={soundsEnabled}
           soundVolume={soundVolume}
           gridLayout={store.gridLayout}
+          showImageTooltips={showImageTooltips}
           onToggleDark={toggleDarkMode}
           onToggleSounds={toggleSounds}
           onSoundVolumeChange={(volume) => {
@@ -495,6 +551,7 @@ export function App() {
             setSoundVolumeState(volume);
           }}
           onGridLayoutChange={store.setGridLayout}
+          onToggleImageTooltips={toggleImageTooltips}
           onClose={() => setIsSettingsOpen(false)}
         />
       )}
@@ -540,6 +597,11 @@ export function App() {
           onOpenSource={() => {
             openSource(contextMenu.item);
             setContextMenu(undefined);
+          }}
+          onDelete={() => {
+            const item = contextMenu.item;
+            setContextMenu(undefined);
+            void deleteItem(item);
           }}
         />
       )}

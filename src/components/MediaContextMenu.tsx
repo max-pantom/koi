@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, FolderSearch, Palette, Tag, X } from "lucide-react";
+import { Copy, ExternalLink, FolderSearch, Palette, Tag, Trash2, X } from "lucide-react";
 import type { MediaItem } from "../lib/types";
 
 export function MediaContextMenu({
@@ -14,6 +14,7 @@ export function MediaContextMenu({
   onShowPalette,
   onResolveFolder,
   onOpenSource,
+  onDelete,
 }: {
   item: MediaItem;
   x: number;
@@ -27,6 +28,7 @@ export function MediaContextMenu({
   onShowPalette: () => void;
   onResolveFolder: () => void;
   onOpenSource: () => void;
+  onDelete: () => void;
 }) {
   return (
     <div className="context-layer" onPointerDown={onClose}>
@@ -77,6 +79,10 @@ export function MediaContextMenu({
             Locate folder
           </button>
         )}
+        <button className="is-destructive" type="button" onClick={onDelete}>
+          <Trash2 size={14} aria-hidden="true" />
+          Move to Trash
+        </button>
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ export async function getKoiFolders(fetchImpl = fetch) {
 export async function routeCaptureToKoi({
   destinationFolderId,
   imageFilename,
-  sidecarFilename,
+  metadata,
   fetchImpl = fetch,
 }) {
   if (!destinationFolderId) return { routed: false, folderName: "Koi Captures" };
@@ -25,7 +25,7 @@ export async function routeCaptureToKoi({
       "Content-Type": "application/json",
       "X-Koi-Client": "chrome-extension",
     },
-    body: JSON.stringify({ destinationFolderId, imageFilename, sidecarFilename }),
+    body: JSON.stringify({ destinationFolderId, imageFilename, metadata }),
   });
   const payload = await readPayload(response);
   if (!response.ok) throw new Error(payload.error || "Koi could not route this capture.");

@@ -36,6 +36,7 @@ export function MediaGrid({
   onMeasureBatch,
   gridColumns,
   gridLayout,
+  showImageTooltips,
   onScrollChange,
   onStartWindowDrag,
 }: {
@@ -50,6 +51,7 @@ export function MediaGrid({
   onMeasureBatch: (measurements: MediaMeasurement[]) => void;
   gridColumns: number;
   gridLayout: GridLayout;
+  showImageTooltips: boolean;
   onScrollChange: (scrollTop: number) => void;
   onStartWindowDrag: (event: PointerEvent<HTMLElement>) => void;
 }) {
@@ -166,6 +168,7 @@ export function MediaGrid({
             item={position.item}
             index={position.index}
             isActive={position.item.id === selectedItem?.id}
+            showImageTooltip={showImageTooltips}
             style={{
               width: position.width,
               height: position.height,

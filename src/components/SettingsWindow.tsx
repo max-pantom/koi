@@ -1,4 +1,5 @@
-import { AlignJustify, Moon, Volume2, X } from "lucide-react";
+import { AlignJustify, MessageSquareText, Moon, Volume2, X } from "lucide-react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import type { GridLayout } from "../lib/types";
 
 export function SettingsWindow({
@@ -6,25 +7,56 @@ export function SettingsWindow({
   soundsEnabled,
   soundVolume,
   gridLayout,
+  showImageTooltips,
   onToggleDark,
   onToggleSounds,
   onSoundVolumeChange,
   onGridLayoutChange,
+  onToggleImageTooltips,
   onClose,
 }: {
   isDark: boolean;
   soundsEnabled: boolean;
   soundVolume: number;
   gridLayout: GridLayout;
+  showImageTooltips: boolean;
   onToggleDark: () => void;
   onToggleSounds: () => void;
   onSoundVolumeChange: (volume: number) => void;
   onGridLayoutChange: (layout: GridLayout) => void;
+  onToggleImageTooltips: () => void;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    return () => previous?.focus();
+  }, []);
+
+  const keepFocusInside = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button, input") ?? []);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  };
+
   return (
-    <div className="modal-layer" role="dialog" aria-modal="true" onPointerDown={onClose}>
-      <section className="settings-window" onPointerDown={(event) => event.stopPropagation()}>
+    <div className="settings-layer" role="presentation" onPointerDown={onClose}>
+      <section ref={dialogRef} className="settings-window" role="dialog" aria-modal="true" aria-label="Settings" onKeyDown={keepFocusInside} onPointerDown={(event) => event.stopPropagation()}>
         <div className="panel-head">
           <span>Settings</span>
           <button type="button" onClick={onClose} title="Close">
@@ -60,6 +92,11 @@ export function SettingsWindow({
           <AlignJustify size={15} />
           <span>Aligned grid</span>
           <kbd>{gridLayout === "aligned" ? "On" : "Off"}</kbd>
+        </button>
+        <button type="button" onClick={onToggleImageTooltips}>
+          <MessageSquareText size={15} aria-hidden="true" />
+          <span>Image name tips</span>
+          <kbd>{showImageTooltips ? "On" : "Off"}</kbd>
         </button>
       </section>
     </div>

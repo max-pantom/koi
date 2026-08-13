@@ -2,6 +2,7 @@ import { downloadImageWithFallback, downloadTextFile } from "./downloads.js";
 import { buildCaptureMetadata } from "./capture-metadata.js";
 import { buildContextCapture } from "./context-capture.js";
 import { routeCaptureToKoi } from "./koi-bridge.js";
+import { CAPTURE_MANIFEST_FILENAME, removeCaptureFromManifest, upsertCaptureManifest } from "./capture-manifest.js";
 
 const CAPTURE_DIRECTORY = "Koi Captures";
 const IMAGE_MENU_ID = "koi-save-image";
@@ -27,13 +28,16 @@ function registerContextMenus() {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   const capture = buildContextCapture(info, tab);
   if (!capture) return;
-  void handleContextCapture(capture).catch((error) => console.error("Koi capture failed", error));
+  void handleContextCapture(capture).catch((error) => {
+    void rememberCaptureError(error);
+  });
 });
 
 async function handleContextCapture(capture) {
-  const settings = await chrome.storage.local.get(["askEveryTime", "quickSaveFolderId"]);
+  const resolvedCapture = await resolveContextImage(capture);
+  const settings = await readLocal(["askEveryTime", "quickSaveFolderId"]);
   if (settings.askEveryTime !== false) {
-    await chrome.storage.local.set({ pendingContextCapture: capture });
+    await writeLocal({ pendingContextCapture: resolvedCapture });
     await chrome.windows.create({
       url: chrome.runtime.getURL("popup.html?context=1"),
       type: "popup",
@@ -44,7 +48,7 @@ async function handleContextCapture(capture) {
     return;
   }
 
-  const message = { ...capture, destinationFolderId: settings.quickSaveFolderId || "" };
+  const message = { ...resolvedCapture, destinationFolderId: settings.quickSaveFolderId || "" };
   if (message.type === "KOI_CAPTURE_IMAGE") {
     return captureImage({
       imageUrl: message.imageUrl,
@@ -103,15 +107,16 @@ async function captureImage({
   destinationFolderId,
 }) {
   if (!isDownloadableUrl(imageUrl)) throw new Error("This image uses a browser-only URL and cannot be downloaded.");
+  const resolvedImage = await resolveImage(tabId, imageUrl, sourceLinkUrl);
   const metadata = typeof tabId === "number"
     ? await readPage(tabId, { ...page, pageUrl: page?.pageUrl || pageUrl, title: page?.title || fallbackTitle })
     : page || { pageUrl, title: fallbackTitle, images: [] };
   return downloadCapture({
     captureType: "image",
-    imageUrl,
+    imageUrl: resolvedImage.imageUrl,
     page: metadata,
-    title: fallbackTitle || metadata.title || fileStemFromUrl(imageUrl),
-    sourceLinkUrl,
+    title: fallbackTitle || metadata.title || fileStemFromUrl(resolvedImage.imageUrl),
+    sourceLinkUrl: resolvedImage.sourceLinkUrl,
     destinationFolderId,
   });
 }
@@ -234,7 +239,7 @@ async function downloadCapture({ captureType, imageUrl, page, title, sourceLinkU
   const extension = await inferExtension(imageUrl);
   const stem = captureStem(title, page.siteName || hostname(page.pageUrl));
   const imageFilename = `${CAPTURE_DIRECTORY}/${stem}.${extension}`;
-  const sidecarFilename = `${CAPTURE_DIRECTORY}/${stem}.koi.json`;
+  const manifestFilename = `${CAPTURE_DIRECTORY}/${CAPTURE_MANIFEST_FILENAME}`;
   const capturedAt = new Date().toISOString();
   const imageDownload = await downloadImageWithFallback({
     downloads: chrome.downloads,
@@ -256,50 +261,108 @@ async function downloadCapture({ captureType, imageUrl, page, title, sourceLinkU
     destinationFolderId,
   });
 
-  let metadataDownloadId;
+  let manifestDownloadId;
   try {
-    metadataDownloadId = await downloadTextFile({
+    const stored = await readLocal(["captureManifest"]);
+    const manifest = upsertCaptureManifest(stored.captureManifest, metadata);
+    manifestDownloadId = await downloadTextFile({
       downloads: chrome.downloads,
-      text: `${JSON.stringify(metadata, null, 2)}\n`,
-      filename: sidecarFilename,
+      text: `${JSON.stringify(manifest, null, 2)}\n`,
+      filename: manifestFilename,
     });
+    await writeLocal({ captureManifest: manifest });
   } catch (error) {
     throw new Error(`The image was saved, but its source information was not: ${readableError(error)}`);
   }
 
   let destinationFolderName = "Koi Captures";
+  let finalManifestDownloadId = manifestDownloadId;
   if (destinationFolderId) {
     try {
       const route = await routeCaptureToKoi({
         destinationFolderId,
         imageFilename: `${stem}.${extension}`,
-        sidecarFilename: `${stem}.koi.json`,
+        metadata,
       });
       destinationFolderName = route.folderName || destinationFolderName;
+      if (!route.isCaptureInbox) {
+        const stored = await readLocal(["captureManifest"]);
+        const manifest = removeCaptureFromManifest(stored.captureManifest, metadata.imageFilename);
+        finalManifestDownloadId = await downloadTextFile({
+          downloads: chrome.downloads,
+          text: `${JSON.stringify(manifest, null, 2)}\n`,
+          filename: manifestFilename,
+        });
+        await writeLocal({ captureManifest: manifest });
+      }
     } catch (error) {
       throw new Error(`The capture is safe in Downloads/Koi Captures, but it was not moved: ${readableError(error)}`);
     }
   }
 
-  await chrome.storage.local.set({
+  await writeLocal({
     lastCapture: {
       ...metadata,
       imageFilename,
-      sidecarFilename,
+      manifestFilename,
       imageDownloadId: imageDownload.id,
-      metadataDownloadId,
+      manifestDownloadId: finalManifestDownloadId,
       usedFallback: imageDownload.usedFallback,
       destinationFolderName,
     },
   });
   return {
     imageFilename,
-    sidecarFilename,
+    manifestFilename,
     imageDownloadId: imageDownload.id,
-    metadataDownloadId,
+    manifestDownloadId: finalManifestDownloadId,
     usedFallback: imageDownload.usedFallback,
     destinationFolderName,
   };
+}
+
+async function resolveContextImage(capture) {
+  if (capture.type !== "KOI_CAPTURE_IMAGE") return capture;
+  const resolved = await resolveImage(capture.tabId, capture.imageUrl, capture.sourceLinkUrl);
+  return { ...capture, ...resolved };
+}
+
+async function resolveImage(tabId, imageUrl, sourceLinkUrl) {
+  if (typeof tabId !== "number") return { imageUrl, sourceLinkUrl: sourceLinkUrl || "" };
+  try {
+    const resolved = await chrome.tabs.sendMessage(tabId, { type: "KOI_RESOLVE_IMAGE", imageUrl });
+    return {
+      imageUrl: isDownloadableUrl(resolved?.imageUrl) ? resolved.imageUrl : imageUrl,
+      sourceLinkUrl: resolved?.sourceLinkUrl || sourceLinkUrl || "",
+    };
+  } catch {
+    return { imageUrl, sourceLinkUrl: sourceLinkUrl || "" };
+  }
+}
+
+async function readLocal(keys) {
+  try {
+    return await chrome.storage.local.get(keys);
+  } catch {
+    return {};
+  }
+}
+
+async function writeLocal(value) {
+  try {
+    await chrome.storage.local.set(value);
+  } catch (error) {
+    throw new Error(`Koi could not save its extension state: ${readableError(error)}`);
+  }
+}
+
+async function rememberCaptureError(error) {
+  const message = readableError(error);
+  try {
+    await chrome.storage.local.set({ lastCaptureError: message });
+  } catch {
+    // The extension was reloaded while the old service worker was still finishing.
+  }
 }
 
 

@@ -6,6 +6,7 @@ type MediaTileProps = {
   item: MediaItem;
   index: number;
   isActive: boolean;
+  showImageTooltip: boolean;
   style: CSSProperties;
   onActivate: (index: number) => void;
   onContextMenu: (event: MouseEvent<HTMLButtonElement>, index: number) => void;
@@ -16,6 +17,7 @@ export const MediaTile = memo(function MediaTile({
   item,
   index,
   isActive,
+  showImageTooltip,
   style,
   onActivate,
   onContextMenu,
@@ -28,8 +30,8 @@ export const MediaTile = memo(function MediaTile({
       type="button"
       onClick={() => onActivate(index)}
       onContextMenu={(event) => onContextMenu(event, index)}
-      aria-label={item.sourceTitle || item.name}
-      title={item.sourceTitle || item.name}
+      aria-label={`${item.captureType === "link" ? "Saved page: " : ""}${item.sourceTitle || item.name}`}
+      title={showImageTooltip ? item.sourceTitle || item.name : undefined}
     >
       <img
         src={mediaSrc(item)}
@@ -48,6 +50,7 @@ export const MediaTile = memo(function MediaTile({
           }
         }}
       />
+      {item.captureType === "link" && <span className="tile-kind">Saved page</span>}
     </button>
   );
 }, sameTileProps);
@@ -56,6 +59,7 @@ function sameTileProps(previous: MediaTileProps, next: MediaTileProps) {
   return previous.item === next.item
     && previous.index === next.index
     && previous.isActive === next.isActive
+    && previous.showImageTooltip === next.showImageTooltip
     && previous.onActivate === next.onActivate
     && previous.onContextMenu === next.onContextMenu
     && previous.onMeasure === next.onMeasure

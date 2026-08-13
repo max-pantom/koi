@@ -25,7 +25,7 @@ struct BridgeFolder {
 struct RouteCaptureRequest {
     destination_folder_id: String,
     image_filename: String,
-    sidecar_filename: String,
+    metadata: serde_json::Value,
 }
 
 #[derive(Serialize)]
@@ -33,6 +33,7 @@ struct RouteCaptureRequest {
 struct RouteCaptureResponse {
     routed: bool,
     folder_name: String,
+    is_capture_inbox: bool,
 }
 
 pub fn start(app: AppHandle) {
@@ -136,7 +137,6 @@ fn route_capture(app: &AppHandle, body: &[u8]) -> Result<String, String> {
     let request = serde_json::from_slice::<RouteCaptureRequest>(body)
         .map_err(|_| "The capture routing request is invalid.".to_string())?;
     validate_filename(&request.image_filename)?;
-    validate_filename(&request.sidecar_filename)?;
 
     let folder = db::folder_by_id(app, &request.destination_folder_id)?
         .ok_or_else(|| "That destination folder is no longer in Koi.".to_string())?;
@@ -147,36 +147,45 @@ fn route_capture(app: &AppHandle, body: &[u8]) -> Result<String, String> {
 
     let inbox = capture_inbox_path(app)?;
     let source_image = inbox.join(&request.image_filename);
-    let source_sidecar = inbox.join(&request.sidecar_filename);
-    if !source_image.is_file() || !source_sidecar.is_file() {
-        return Err("Chrome finished the capture, but Koi could not find both saved files.".into());
+    if !source_image.is_file() {
+        return Err("Chrome finished the capture, but Koi could not find the saved image.".into());
     }
     if destination == inbox {
-        return serialize_route_response(true, folder.name);
+        scanner::upsert_capture_metadata(&destination, &request.image_filename, request.metadata)?;
+        sync_path(app, &destination)?;
+        let _ = app.emit("library-changed", ());
+        return serialize_route_response(true, folder.name, true);
     }
 
     let destination_image = destination.join(&request.image_filename);
-    let destination_sidecar = destination.join(&request.sidecar_filename);
-    if destination_image.exists() || destination_sidecar.exists() {
+    if destination_image.exists() {
         return Err("A capture with that name already exists in the destination folder.".into());
     }
 
     move_file(&source_image, &destination_image)?;
-    if let Err(error) = move_file(&source_sidecar, &destination_sidecar) {
+    if let Err(error) =
+        scanner::upsert_capture_metadata(&destination, &request.image_filename, request.metadata)
+    {
         let _ = move_file(&destination_image, &source_image);
         return Err(error);
     }
+    scanner::remove_capture_metadata(&inbox, &request.image_filename)?;
 
     sync_path(app, &inbox)?;
     sync_path(app, &destination)?;
     let _ = app.emit("library-changed", ());
-    serialize_route_response(true, folder.name)
+    serialize_route_response(true, folder.name, false)
 }
 
-fn serialize_route_response(routed: bool, folder_name: String) -> Result<String, String> {
+fn serialize_route_response(
+    routed: bool,
+    folder_name: String,
+    is_capture_inbox: bool,
+) -> Result<String, String> {
     serde_json::to_string(&RouteCaptureResponse {
         routed,
         folder_name,
+        is_capture_inbox,
     })
     .map_err(|error| error.to_string())
 }

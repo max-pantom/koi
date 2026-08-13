@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, ExternalLink, X } from "lucide-react";
-import { useRef, type WheelEvent } from "react";
+import { useRef, type CSSProperties, type WheelEvent } from "react";
 import { mediaSrc } from "../lib/media";
 import type { MediaItem } from "../lib/types";
 
@@ -31,6 +31,7 @@ export function FocusView({
     || item.sourceFinalUrl
     || item.sourceUrl;
   const sourceHost = sourceHostname(sourceUrl) || item.sourceSiteName || "Open source";
+  const imageRatio = item.width && item.height ? item.width / item.height : 1;
 
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -72,7 +73,13 @@ export function FocusView({
         <ArrowLeft size={18} aria-hidden="true" />
       </button>
       <div className="preview-media">
-        <img src={mediaSrc(item)} alt={item.sourceTitle || item.name} draggable={false} onPointerDown={(event) => event.stopPropagation()} />
+        <div
+          className="preview-image-frame"
+          style={{ "--image-ratio": imageRatio } as CSSProperties}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <img src={mediaSrc(item)} alt={item.sourceTitle || item.name} draggable={false} />
+        </div>
         {showPalette && (
           <div className="focus-palette" onPointerDown={(event) => event.stopPropagation()}>
             {item.dominantColors.slice(0, 5).map((hex) => (
@@ -99,6 +106,7 @@ export function FocusView({
         <ArrowRight size={18} aria-hidden="true" />
       </button>
       <div className="preview-caption">
+        {item.captureType === "link" && <span className="preview-kind">Saved page</span>}
         <span>{item.sourceTitle || item.name}</span>
         {sourceUrl && (
           <button

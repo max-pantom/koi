@@ -12,14 +12,13 @@ import {
   X,
 } from "lucide-react";
 import { Fragment, useId, type PointerEvent, type RefObject } from "react";
-import type { Folder, SearchMode } from "../lib/types";
+import type { Folder } from "../lib/types";
 
 export function Sidebar({
   folders,
   activeFolderId,
   folderCounts,
   gridColumns,
-  searchMode,
   total,
   resultCount,
   isLoading,
@@ -29,8 +28,7 @@ export function Sidebar({
   onAddFolder,
   onSelectFolder,
   onGridColumnsChange,
-  onSearchModeChange,
-  onToggleSearch,
+  onSearchFocusChange,
   onQueryChange,
   onOpenSettings,
   onToggle,
@@ -41,7 +39,6 @@ export function Sidebar({
   activeFolderId: string;
   folderCounts: Map<string, number>;
   gridColumns: number;
-  searchMode: SearchMode;
   total: number;
   resultCount: number;
   isLoading: boolean;
@@ -51,8 +48,7 @@ export function Sidebar({
   onAddFolder: () => void;
   onSelectFolder: (folderId: string) => void;
   onGridColumnsChange: (columns: number) => void;
-  onSearchModeChange: (mode: SearchMode) => void;
-  onToggleSearch: () => void;
+  onSearchFocusChange: (isFocused: boolean) => void;
   onQueryChange: (query: string) => void;
   onOpenSettings: () => void;
   onToggle: () => void;
@@ -60,7 +56,6 @@ export function Sidebar({
   searchRef: RefObject<HTMLInputElement>;
 }) {
   const searchInputId = useId();
-  const searchPanelId = useId();
   const densityPreset = gridColumns <= 4 ? "xl" : gridColumns <= 7 ? "large" : gridColumns <= 11 ? "medium" : "small";
 
   return (
@@ -111,9 +106,9 @@ export function Sidebar({
       <div className="sidebar-body">
         <nav className="sidebar-nav" aria-label="Library navigation">
           <button
-            className={activeFolderId === "all" && !isSearchOpen ? "sidebar-row is-active" : "sidebar-row"}
+            className={activeFolderId === "all" && !query ? "sidebar-row is-active" : "sidebar-row"}
             type="button"
-            aria-current={activeFolderId === "all" && !isSearchOpen ? "page" : undefined}
+            aria-current={activeFolderId === "all" && !query ? "page" : undefined}
             onClick={() => onSelectFolder("all")}
           >
             <Images size={15} strokeWidth={1.7} aria-hidden="true" />
@@ -121,76 +116,39 @@ export function Sidebar({
             <span className="sidebar-row-count">{total.toLocaleString()}</span>
           </button>
 
-          <button
-            className={isSearchOpen ? "sidebar-row is-active" : "sidebar-row"}
-            type="button"
-            aria-expanded={isSearchOpen}
-            aria-controls={searchPanelId}
-            aria-keyshortcuts="Meta+F"
-            onClick={onToggleSearch}
-          >
-            {isSearchOpen ? (
-              <X size={15} strokeWidth={1.7} aria-hidden="true" />
+          <div className={`sidebar-search-field${isSearchOpen || query ? " is-active" : ""}`} role="search">
+            <label className="sr-only" htmlFor={searchInputId}>Search library</label>
+            <Search size={14} strokeWidth={1.7} aria-hidden="true" />
+            <input
+              id={searchInputId}
+              ref={searchRef}
+              type="search"
+              value={query}
+              autoComplete="off"
+              spellCheck="false"
+              placeholder="Search images…"
+              aria-keyshortcuts="Meta+F"
+              onFocus={() => onSearchFocusChange(true)}
+              onBlur={() => onSearchFocusChange(false)}
+              onChange={(event) => onQueryChange(event.target.value)}
+            />
+            {query ? (
+              <button
+                type="button"
+                aria-label="Clear search"
+                title="Clear search"
+                onClick={() => {
+                  onQueryChange("");
+                  searchRef.current?.focus();
+                }}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
             ) : (
-              <Search size={15} strokeWidth={1.7} aria-hidden="true" />
+              <kbd aria-hidden="true">⌘F</kbd>
             )}
-            <span>{isSearchOpen ? "Close search" : "Search"}</span>
-            {!isSearchOpen && <kbd aria-hidden="true">⌘F</kbd>}
-          </button>
-
-          {isSearchOpen && (
-            <div className="sidebar-search" id={searchPanelId} role="search">
-              <label className="sr-only" htmlFor={searchInputId}>Search library</label>
-              <div className="sidebar-search-field">
-                <Search size={14} strokeWidth={1.7} aria-hidden="true" />
-                <input
-                  id={searchInputId}
-                  ref={searchRef}
-                  type="search"
-                  value={query}
-                  autoComplete="off"
-                  spellCheck="false"
-                  placeholder="Name, tag, site…"
-                  onChange={(event) => onQueryChange(event.target.value)}
-                />
-                {query && (
-                  <button
-                    type="button"
-                    aria-label="Clear search"
-                    onClick={() => {
-                      onQueryChange("");
-                      searchRef.current?.focus();
-                    }}
-                  >
-                    <X size={12} aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-
-              <div className="sidebar-search-mode" role="group" aria-label="Search depth">
-                <button
-                  className={searchMode === "normal" ? "is-active" : ""}
-                  type="button"
-                  aria-pressed={searchMode === "normal"}
-                  onClick={() => onSearchModeChange("normal")}
-                >
-                  Standard
-                </button>
-                <button
-                  className={searchMode === "smart" ? "is-active" : ""}
-                  type="button"
-                  aria-pressed={searchMode === "smart"}
-                  onClick={() => onSearchModeChange("smart")}
-                >
-                  Expanded
-                </button>
-              </div>
-
-              <output className="sidebar-search-count" aria-live="polite">
-                {query ? `${resultCount.toLocaleString()} found` : "Type to search"}
-              </output>
-            </div>
-          )}
+          </div>
+          {query && <output className="sidebar-search-count" aria-live="polite">{resultCount.toLocaleString()} found</output>}
         </nav>
 
         <section className="sidebar-section" aria-labelledby="folders-heading">

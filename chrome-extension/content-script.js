@@ -1,3 +1,5 @@
+const { bestImageUrl, imageIncludesUrl } = globalThis.KoiImageCandidates;
+
 function absoluteUrl(value) {
   if (!value) return "";
   try {
@@ -35,7 +37,8 @@ function pageMetadata() {
   );
   const images = Array.from(document.images)
     .map((image) => ({
-      url: absoluteUrl(image.currentSrc || image.src),
+      url: bestImageUrl(image, document.baseURI),
+      displayUrl: absoluteUrl(image.currentSrc || image.src),
       alt: image.alt.trim(),
       title: image.title.trim(),
       linkUrl: absoluteUrl(image.closest("a[href]")?.getAttribute("href")),
@@ -59,7 +62,17 @@ function pageMetadata() {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "KOI_GET_PAGE") return false;
-  sendResponse(pageMetadata());
+  if (message?.type === "KOI_GET_PAGE") {
+    sendResponse(pageMetadata());
+    return false;
+  }
+  if (message?.type !== "KOI_RESOLVE_IMAGE") return false;
+  const image = Array.from(document.images).find((candidate) => (
+    imageIncludesUrl(candidate, message.imageUrl, document.baseURI)
+  ));
+  sendResponse({
+    imageUrl: bestImageUrl(image, document.baseURI) || message.imageUrl || "",
+    sourceLinkUrl: absoluteUrl(image?.closest("a[href]")?.getAttribute("href")),
+  });
   return false;
 });
