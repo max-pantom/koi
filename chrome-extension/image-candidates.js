@@ -16,7 +16,10 @@ function bestImageUrl(image, baseUrl) {
   const candidates = [];
   const add = (value, score) => {
     const url = absoluteUrl(value, baseUrl);
-    if (isHttpUrl(url)) candidates.push({ url, score });
+    if (!isHttpUrl(url)) return;
+    candidates.push({ url, score });
+    const original = platformOriginalUrl(url);
+    if (original !== url) candidates.push({ url: original, score: score + 5_000_000 });
   };
 
   ORIGINAL_IMAGE_ATTRIBUTES.forEach((attribute, index) => {
@@ -108,4 +111,18 @@ function isHttpUrl(value) {
   return /^https?:\/\//i.test(value || "");
 }
 
-globalThis.KoiImageCandidates = { bestImageUrl, imageIncludesUrl, parseSrcset };
+function platformOriginalUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.hostname === "pbs.twimg.com" && url.pathname !== "/profile_images/") {
+      if (url.searchParams.has("name")) url.searchParams.set("name", "orig");
+      const profileMatch = url.pathname.match(/^(\/profile_images\/[^/]+\/[^/]+)_\w+(\.[a-z0-9]+)$/i);
+      if (profileMatch) url.pathname = `${profileMatch[1]}${profileMatch[2]}`;
+    }
+    return url.href;
+  } catch {
+    return value || "";
+  }
+}
+
+globalThis.KoiImageCandidates = { bestImageUrl, imageIncludesUrl, parseSrcset, platformOriginalUrl };

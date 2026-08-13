@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import "./image-candidates.js";
 
-const { bestImageUrl, parseSrcset } = globalThis.KoiImageCandidates;
+const { bestImageUrl, parseSrcset, platformOriginalUrl } = globalThis.KoiImageCandidates;
 
 test("chooses the largest srcset candidate instead of the rendered currentSrc", () => {
   const image = fakeImage({
@@ -26,6 +26,23 @@ test("parses density descriptors as quality candidates", () => {
     { url: "https://example.com/one.jpg", quality: 1000 },
     { url: "https://example.com/two.jpg", quality: 2000 },
   ]);
+});
+
+test("requests the original X image without opening the lightbox", () => {
+  const thumbnail = "https://pbs.twimg.com/media/GV-example?format=jpg&name=small";
+  assert.equal(
+    platformOriginalUrl(thumbnail),
+    "https://pbs.twimg.com/media/GV-example?format=jpg&name=orig",
+  );
+  const image = fakeImage({ currentSrc: thumbnail, src: thumbnail });
+  assert.equal(bestImageUrl(image, "https://x.com/example/status/1"), platformOriginalUrl(thumbnail));
+});
+
+test("removes X profile thumbnail suffixes", () => {
+  assert.equal(
+    platformOriginalUrl("https://pbs.twimg.com/profile_images/123/avatar_normal.jpg"),
+    "https://pbs.twimg.com/profile_images/123/avatar.jpg",
+  );
 });
 
 function fakeImage({ currentSrc = "", src = "", attributes = {} }) {
