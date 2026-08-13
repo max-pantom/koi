@@ -23,6 +23,7 @@ struct BridgeFolder {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RouteCaptureRequest {
+    #[serde(default)]
     destination_folder_id: String,
     image_filename: String,
     metadata: serde_json::Value,
@@ -138,14 +139,21 @@ fn route_capture(app: &AppHandle, body: &[u8]) -> Result<String, String> {
         .map_err(|_| "The capture routing request is invalid.".to_string())?;
     validate_filename(&request.image_filename)?;
 
-    let folder = db::folder_by_id(app, &request.destination_folder_id)?
-        .ok_or_else(|| "That destination folder is no longer in Koi.".to_string())?;
+    let inbox = capture_inbox_path(app)?;
+    let folder = if request.destination_folder_id.is_empty() {
+        db::get_library(app)?
+            .folders
+            .into_iter()
+            .find(|folder| Path::new(&folder.path) == inbox)
+    } else {
+        db::folder_by_id(app, &request.destination_folder_id)?
+    }
+    .ok_or_else(|| "That destination folder is no longer in Koi.".to_string())?;
     let destination = PathBuf::from(&folder.path);
     if !destination.is_dir() {
         return Err("That destination folder is unavailable. Reconnect it in Koi.".into());
     }
 
-    let inbox = capture_inbox_path(app)?;
     let source_image = inbox.join(&request.image_filename);
     if !source_image.is_file() {
         return Err("Chrome finished the capture, but Koi could not find the saved image.".into());

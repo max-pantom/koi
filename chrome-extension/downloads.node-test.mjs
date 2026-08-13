@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { downloadImageWithFallback, downloadTextFile, waitForDownload } from "./downloads.js";
+import { downloadImageWithFallback, waitForDownload } from "./downloads.js";
 
 function createDownloads(outcomes) {
   let nextId = 1;
@@ -72,19 +72,6 @@ test("retries an interrupted CDN download through an image data URL", async () =
   assert.deepEqual(result, { id: 2, usedFallback: true });
   assert.equal(downloads.calls.length, 2);
   assert.match(downloads.calls[1].url, /^data:image\/png;base64,/);
-});
-
-test("waits for the consolidated capture manifest too", async () => {
-  const downloads = createDownloads([{ state: "complete" }]);
-  const id = await downloadTextFile({
-    downloads,
-    text: "{\"sourceUrl\":\"https://example.com/image.jpg\"}\n",
-    filename: "Koi Captures/koi-manifest.json",
-    timeoutMs: 100,
-  });
-
-  assert.equal(id, 1);
-  assert.match(downloads.calls[0].url, /^data:application\/json/);
 });
 
 test("reports a download that never finishes", async () => {

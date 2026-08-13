@@ -1,6 +1,6 @@
 # Koi Capture for Chrome
 
-Koi Capture is a local-first Manifest V3 extension. It saves each image or page preview with a matching `.koi.json` source sidecar. When Koi is open, the popup reads its library folder names and routes the completed pair to the folder you choose.
+Koi Capture is a local-first Manifest V3 extension. It saves an image or page preview, then sends its source metadata directly to Koi. Koi maintains one `koi-manifest.json` inside each managed folder; Chrome never downloads a JSON sidecar.
 
 ## Install locally
 
@@ -21,7 +21,7 @@ A capture is a pair with the same filename stem:
 
 ```text
 20260812T120000Z-abc-example-page.jpg
-20260812T120000Z-abc-example-page.koi.json
+koi-manifest.json
 ```
 
 Koi reads the sidecar during its normal folder scan. Websites that do not publish an Open Graph image fall back to the largest usable page image. Browser-internal pages, protected media, `blob:` URLs, canvases, and DRM content may not be downloadable.

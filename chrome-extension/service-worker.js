@@ -1,8 +1,7 @@
-import { downloadImageWithFallback, downloadTextFile } from "./downloads.js";
+import { downloadImageWithFallback } from "./downloads.js";
 import { buildCaptureMetadata } from "./capture-metadata.js";
 import { buildContextCapture } from "./context-capture.js";
 import { routeCaptureToKoi } from "./koi-bridge.js";
-import { CAPTURE_MANIFEST_FILENAME, removeCaptureFromManifest, upsertCaptureManifest } from "./capture-manifest.js";
 
 const CAPTURE_DIRECTORY = "Koi Captures";
 const IMAGE_MENU_ID = "koi-save-image";
@@ -239,7 +238,6 @@ async function downloadCapture({ captureType, imageUrl, page, title, sourceLinkU
   const extension = await inferExtension(imageUrl);
   const stem = captureStem(title, page.siteName || hostname(page.pageUrl));
   const imageFilename = `${CAPTURE_DIRECTORY}/${stem}.${extension}`;
-  const manifestFilename = `${CAPTURE_DIRECTORY}/${CAPTURE_MANIFEST_FILENAME}`;
   const capturedAt = new Date().toISOString();
   const imageDownload = await downloadImageWithFallback({
     downloads: chrome.downloads,
@@ -261,61 +259,30 @@ async function downloadCapture({ captureType, imageUrl, page, title, sourceLinkU
     destinationFolderId,
   });
 
-  let manifestDownloadId;
-  try {
-    const stored = await readLocal(["captureManifest"]);
-    const manifest = upsertCaptureManifest(stored.captureManifest, metadata);
-    manifestDownloadId = await downloadTextFile({
-      downloads: chrome.downloads,
-      text: `${JSON.stringify(manifest, null, 2)}\n`,
-      filename: manifestFilename,
-    });
-    await writeLocal({ captureManifest: manifest });
-  } catch (error) {
-    throw new Error(`The image was saved, but its source information was not: ${readableError(error)}`);
-  }
-
   let destinationFolderName = "Koi Captures";
-  let finalManifestDownloadId = manifestDownloadId;
-  if (destinationFolderId) {
-    try {
-      const route = await routeCaptureToKoi({
-        destinationFolderId,
-        imageFilename: `${stem}.${extension}`,
-        metadata,
-      });
-      destinationFolderName = route.folderName || destinationFolderName;
-      if (!route.isCaptureInbox) {
-        const stored = await readLocal(["captureManifest"]);
-        const manifest = removeCaptureFromManifest(stored.captureManifest, metadata.imageFilename);
-        finalManifestDownloadId = await downloadTextFile({
-          downloads: chrome.downloads,
-          text: `${JSON.stringify(manifest, null, 2)}\n`,
-          filename: manifestFilename,
-        });
-        await writeLocal({ captureManifest: manifest });
-      }
-    } catch (error) {
-      throw new Error(`The capture is safe in Downloads/Koi Captures, but it was not moved: ${readableError(error)}`);
-    }
+  try {
+    const route = await routeCaptureToKoi({
+      destinationFolderId: destinationFolderId || "",
+      imageFilename: `${stem}.${extension}`,
+      metadata,
+    });
+    destinationFolderName = route.folderName || destinationFolderName;
+  } catch (error) {
+    throw new Error(`The image is safe in Downloads/Koi Captures, but Koi could not store its source information: ${readableError(error)}`);
   }
 
   await writeLocal({
     lastCapture: {
       ...metadata,
       imageFilename,
-      manifestFilename,
       imageDownloadId: imageDownload.id,
-      manifestDownloadId: finalManifestDownloadId,
       usedFallback: imageDownload.usedFallback,
       destinationFolderName,
     },
   });
   return {
     imageFilename,
-    manifestFilename,
     imageDownloadId: imageDownload.id,
-    manifestDownloadId: finalManifestDownloadId,
     usedFallback: imageDownload.usedFallback,
     destinationFolderName,
   };

@@ -77,15 +77,6 @@ export async function downloadImageWithFallback({
   }
 }
 
-export async function downloadTextFile({ downloads, text, filename, timeoutMs = DEFAULT_TIMEOUT_MS }) {
-  return startAndWait(downloads, {
-    url: `data:application/json;charset=utf-8,${encodeURIComponent(text)}`,
-    filename,
-    conflictAction: "overwrite",
-    saveAs: false,
-  }, timeoutMs);
-}
-
 export async function waitForDownload(downloads, id, timeoutMs = DEFAULT_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     let settled = false;

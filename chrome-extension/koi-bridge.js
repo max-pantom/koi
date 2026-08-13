@@ -17,7 +17,6 @@ export async function routeCaptureToKoi({
   metadata,
   fetchImpl = fetch,
 }) {
-  if (!destinationFolderId) return { routed: false, folderName: "Koi Captures" };
   const response = await fetchImpl(`${KOI_BRIDGE_URL}/captures/route`, {
     method: "POST",
     cache: "no-store",

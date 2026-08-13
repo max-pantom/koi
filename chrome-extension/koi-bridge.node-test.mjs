@@ -44,6 +44,28 @@ test("routes a completed image and its manifest metadata", async () => {
   assert.deepEqual(result, { routed: true, folderName: "References", isCaptureInbox: false });
 });
 
+test("stores inbox metadata without selecting a destination folder", async () => {
+  const metadata = { imageFilename: "capture.jpg", sourceUrl: "https://example.com/capture.jpg" };
+  const result = await routeCaptureToKoi({
+    destinationFolderId: "",
+    imageFilename: "capture.jpg",
+    metadata,
+    fetchImpl: async (_url, options) => {
+      assert.deepEqual(JSON.parse(options.body), {
+        destinationFolderId: "",
+        imageFilename: "capture.jpg",
+        metadata,
+      });
+      return {
+        ok: true,
+        async json() { return { routed: true, folderName: "Koi Captures", isCaptureInbox: true }; },
+      };
+    },
+  });
+
+  assert.equal(result.isCaptureInbox, true);
+});
+
 test("surfaces a desktop routing failure", async () => {
   await assert.rejects(() => routeCaptureToKoi({
     destinationFolderId: "missing",
