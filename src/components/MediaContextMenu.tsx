@@ -8,6 +8,7 @@ export function MediaContextMenu({
   onClose,
   onReveal,
   onCopyPath,
+  onCopyImage,
   onCopyName,
   onCopyPalette,
   onEditTags,
@@ -22,6 +23,7 @@ export function MediaContextMenu({
   onClose: () => void;
   onReveal: () => void;
   onCopyPath: () => void;
+  onCopyImage: () => void;
   onCopyName: () => void;
   onCopyPalette: () => void;
   onEditTags: () => void;
@@ -56,6 +58,10 @@ export function MediaContextMenu({
         <button type="button" onClick={onCopyPath}>
           <Copy size={14} aria-hidden="true" />
           Copy path
+        </button>
+        <button type="button" onClick={onCopyImage}>
+          <Copy size={14} aria-hidden="true" />
+          Copy image
         </button>
         <button type="button" onClick={onCopyName}>
           <Copy size={14} aria-hidden="true" />

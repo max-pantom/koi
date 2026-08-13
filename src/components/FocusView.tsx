@@ -9,6 +9,7 @@ export function FocusView({
   isClosing,
   showPalette,
   onCopyColor,
+  onCopyImage,
   onClose,
   onPrevious,
   onNext,
@@ -19,6 +20,7 @@ export function FocusView({
   isClosing: boolean;
   showPalette: boolean;
   onCopyColor: (hex: string) => void;
+  onCopyImage: () => void;
   onClose: () => void;
   onPrevious: () => void;
   onNext: () => void;
@@ -49,6 +51,10 @@ export function FocusView({
       aria-modal="true"
       aria-label={item.sourceTitle || item.name}
       onPointerDown={onClose}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onCopyImage();
+      }}
       onWheel={onWheel}
     >
       <img className="preview-blur" src={mediaSrc(item)} alt="" draggable={false} />
@@ -77,6 +83,7 @@ export function FocusView({
           className="preview-image-frame"
           style={{ "--image-ratio": imageRatio } as CSSProperties}
           onPointerDown={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.stopPropagation()}
         >
           <img src={mediaSrc(item)} alt={item.sourceTitle || item.name} draggable={false} />
         </div>

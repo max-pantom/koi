@@ -186,11 +186,11 @@ export function App() {
     void openUrl(url);
   };
 
-  const copyImage = async () => {
-    if (!store.selectedItem) return;
+  const copyImage = async (item = store.selectedItem) => {
+    if (!item) return;
 
     try {
-      await invoke("copy_media_image", { mediaId: store.selectedItem.id });
+      await invoke("copy_media_image", { mediaId: item.id });
       showToast("Image copied", "success");
       playSound("copy");
     } catch (error) {
@@ -528,6 +528,7 @@ export function App() {
           isClosing={isPreviewClosing}
           showPalette={isPaletteOpen}
           onCopyColor={copyHex}
+          onCopyImage={() => void copyImage()}
           onClose={closePreview}
           onPrevious={() => store.moveSelection(-1)}
           onNext={() => store.moveSelection(1)}
@@ -570,6 +571,11 @@ export function App() {
             void navigator.clipboard.writeText(contextMenu.item.path);
             setContextMenu(undefined);
             playSound("copy");
+          }}
+          onCopyImage={() => {
+            const item = contextMenu.item;
+            setContextMenu(undefined);
+            void copyImage(item);
           }}
           onCopyName={() => {
             void navigator.clipboard.writeText(contextMenu.item.name);
