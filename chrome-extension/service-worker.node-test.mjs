@@ -3,10 +3,11 @@ import test from "node:test";
 
 test("service worker starts and registers its Chrome listeners", async () => {
   const registered = [];
+  const menuItems = [];
   const listener = (name) => ({ addListener(callback) { registered.push([name, callback]); } });
   globalThis.chrome = {
     runtime: { onInstalled: listener("installed"), onMessage: listener("message"), getURL: (path) => path },
-    contextMenus: { onClicked: listener("context"), removeAll(callback) { callback(); }, create() {} },
+    contextMenus: { onClicked: listener("context"), removeAll(callback) { callback(); }, create(item) { menuItems.push(item); } },
     storage: { local: { get: async () => ({}), set: async () => undefined } },
     windows: { create: async () => undefined },
     downloads: { onChanged: listener("download"), search: async () => [] },
@@ -17,6 +18,14 @@ test("service worker starts and registers its Chrome listeners", async () => {
 
   assert.deepEqual(registered.map(([name]) => name), ["installed", "context", "message"]);
   assert.equal(registered.every(([, callback]) => typeof callback === "function"), true);
+  registered.find(([name]) => name === "installed")[1]();
+  assert.deepEqual(menuItems.map(({ id, title }) => [id, title]), [
+    ["koi-save", "Koi"],
+    ["koi-quick-save-image", "Quick save image"],
+    ["koi-save-image-to", "Save image to…"],
+    ["koi-quick-save-page", "Quick save page"],
+    ["koi-save-page-to", "Save page to…"],
+  ]);
   delete globalThis.chrome;
 });
 

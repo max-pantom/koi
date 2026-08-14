@@ -35,3 +35,22 @@ test("builds a linked-page capture with the clicked destination intact", () => {
 test("ignores unrelated context-menu events", () => {
   assert.equal(buildContextCapture({ menuItemId: "something-else" }, {}), undefined);
 });
+
+test("quick-save context actions bypass the destination prompt", () => {
+  const capture = buildContextCapture({
+    menuItemId: "koi-quick-save-image",
+    srcUrl: "https://cdn.example.com/chair.webp",
+    pageUrl: "https://example.com/gallery",
+  }, { id: 14, title: "Furniture gallery" });
+
+  assert.equal(capture.promptForDestination, false);
+});
+
+test("save-to context actions always ask for a destination", () => {
+  const capture = buildContextCapture({
+    menuItemId: "koi-save-page-to",
+    pageUrl: "https://example.com/gallery",
+  }, { id: 14, title: "Furniture gallery" });
+
+  assert.equal(capture.promptForDestination, true);
+});

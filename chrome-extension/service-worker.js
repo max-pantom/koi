@@ -4,21 +4,39 @@ import { buildContextCapture } from "./context-capture.js";
 import { routeCaptureToKoi } from "./koi-bridge.js";
 
 const CAPTURE_DIRECTORY = "Koi Captures";
-const IMAGE_MENU_ID = "koi-save-image";
-const PAGE_MENU_ID = "koi-save-page";
+const ROOT_MENU_ID = "koi-save";
 
 chrome.runtime.onInstalled.addListener(registerContextMenus);
 
 function registerContextMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
-      id: IMAGE_MENU_ID,
-      title: "Save image to Koi",
+      id: ROOT_MENU_ID,
+      title: "Koi",
+      contexts: ["image", "page", "link"],
+    });
+    chrome.contextMenus.create({
+      id: "koi-quick-save-image",
+      parentId: ROOT_MENU_ID,
+      title: "Quick save image",
       contexts: ["image"],
     });
     chrome.contextMenus.create({
-      id: PAGE_MENU_ID,
-      title: "Save page to Koi",
+      id: "koi-save-image-to",
+      parentId: ROOT_MENU_ID,
+      title: "Save image to…",
+      contexts: ["image"],
+    });
+    chrome.contextMenus.create({
+      id: "koi-quick-save-page",
+      parentId: ROOT_MENU_ID,
+      title: "Quick save page",
+      contexts: ["page", "link"],
+    });
+    chrome.contextMenus.create({
+      id: "koi-save-page-to",
+      parentId: ROOT_MENU_ID,
+      title: "Save page to…",
       contexts: ["page", "link"],
     });
   });
@@ -35,7 +53,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 async function handleContextCapture(capture) {
   const resolvedCapture = await resolveContextImage(capture);
   const settings = await readLocal(["askEveryTime", "quickSaveFolderId"]);
-  if (settings.askEveryTime !== false) {
+  const shouldPrompt = typeof resolvedCapture.promptForDestination === "boolean"
+    ? resolvedCapture.promptForDestination
+    : settings.askEveryTime !== false;
+  if (shouldPrompt) {
     await writeLocal({ pendingContextCapture: resolvedCapture });
     await chrome.windows.create({
       url: chrome.runtime.getURL("popup.html?context=1"),

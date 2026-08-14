@@ -12,3 +12,7 @@
 - [x] this fix (service-worker.js:34 (anonymous function))
 - [x] copy does't really work make it work
 - [x] when your cursor is open an image natively it bring out the name ablility to disable in settings
+- [x] The extension when you press is saying Nothing available here.. so it means its not more working it doesn't see images again on site..
+- [x] cmd + R for reload extension
+- [x] total redesign of right click
+- [ ] tags system and projects moodboard - wait

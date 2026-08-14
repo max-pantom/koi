@@ -4,8 +4,6 @@ import {
   Grid2X2,
   Grid3X3,
   Images,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
   Settings2,
   Square,
@@ -13,6 +11,29 @@ import {
 } from "lucide-react";
 import { Fragment, useId, type PointerEvent, type RefObject } from "react";
 import type { Folder } from "../lib/types";
+
+function SidebarToggleIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect
+        x="1.833"
+        y="3.167"
+        width="12.334"
+        height="9.666"
+        rx="1.333"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M11.833 5.5V10.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 export function Sidebar({
   folders,
@@ -71,7 +92,7 @@ export function Sidebar({
           title="Show sidebar (⌃⌘S)"
           onClick={onToggle}
         >
-          <PanelLeftOpen size={15} strokeWidth={1.7} aria-hidden="true" />
+          <SidebarToggleIcon />
         </button>
       </div>
       <aside
@@ -99,7 +120,7 @@ export function Sidebar({
           title="Hide sidebar (⌃⌘S)"
           onClick={onToggle}
         >
-          <PanelLeftClose size={15} strokeWidth={1.7} aria-hidden="true" />
+          <SidebarToggleIcon />
         </button>
       </div>
 

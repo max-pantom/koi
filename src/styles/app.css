@@ -176,9 +176,13 @@ button:focus:not(:focus-visible) {
   place-items: center;
   padding: 0;
   border-radius: 9px;
-  color: var(--sidebar-secondary);
+  color: #888888;
   background: transparent;
   -webkit-user-drag: none;
+}
+
+.sidebar-toggle svg {
+  display: block;
 }
 
 .sidebar-reveal-chrome {

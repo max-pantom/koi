@@ -12,6 +12,7 @@ const imageGrid = document.querySelector("#image-grid");
 const imageCount = document.querySelector("#image-count");
 const emptyImages = document.querySelector("#empty-images");
 const captureUnavailable = document.querySelector("#capture-unavailable");
+const retryCaptureButton = document.querySelector("#retry-capture");
 const status = document.querySelector("#status");
 const bridgeState = document.querySelector("#bridge-state");
 const destinationFolder = document.querySelector("#destination-folder");
@@ -21,6 +22,7 @@ const quickSaveFolder = document.querySelector("#quick-save-folder");
 let page;
 let folders = [];
 let pendingContextCapture;
+let activeTabId;
 
 void initialise();
 
@@ -34,13 +36,29 @@ async function initialise() {
     await destinationsReady;
     return;
   }
+  await loadActivePage();
+  await destinationsReady;
+}
+
+async function loadActivePage({ reload = false } = {}) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !/^https?:\/\//i.test(tab.url || "")) {
       throw new Error("Open a website to capture it with Koi.");
     }
-    page = await chrome.tabs.sendMessage(tab.id, { type: "KOI_GET_PAGE" });
+    activeTabId = tab.id;
+    if (reload) {
+      setStatus("Reloading page…");
+      await chrome.tabs.reload(tab.id);
+      await waitForTabLoad(tab.id);
+    }
+    page = await readPageFromTab(tab.id);
     renderPage(page);
+    captureUnavailable.hidden = true;
+    imageGrid.hidden = false;
+    imageCount.hidden = false;
+    pageTab.disabled = false;
+    setStatus("");
   } catch (error) {
     captureUnavailable.hidden = false;
     imageGrid.hidden = true;
@@ -48,8 +66,47 @@ async function initialise() {
     pageTab.disabled = true;
     setStatus(readableCaptureError(error), true);
   }
-  await destinationsReady;
 }
+
+async function readPageFromTab(tabId) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, { type: "KOI_GET_PAGE" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/receiving end does not exist|could not establish connection/i.test(message)) throw error;
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["image-candidates.js", "content-script.js"],
+    });
+    return chrome.tabs.sendMessage(tabId, { type: "KOI_GET_PAGE" });
+  }
+}
+
+function waitForTabLoad(tabId) {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      reject(new Error("The page took too long to reload. Try again."));
+    }, 15_000);
+    function onUpdated(updatedTabId, changeInfo) {
+      if (updatedTabId !== tabId || changeInfo.status !== "complete") return;
+      window.clearTimeout(timeout);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      resolve();
+    }
+    chrome.tabs.onUpdated.addListener(onUpdated);
+  });
+}
+
+retryCaptureButton.addEventListener("click", () => {
+  void loadActivePage({ reload: true });
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key.toLowerCase() !== "r" || (!event.metaKey && !event.ctrlKey) || event.altKey || event.shiftKey) return;
+  event.preventDefault();
+  if (typeof activeTabId === "number") void loadActivePage({ reload: true });
+});
 
 function renderPendingCapture(capture) {
   page = capture.page;
@@ -249,7 +306,7 @@ function hostname(value) {
 function readableCaptureError(error) {
   const message = error instanceof Error ? error.message : String(error);
   if (/receiving end does not exist|could not establish connection/i.test(message)) {
-    return "Refresh this page once, then open Koi again.";
+    return "Reload the page to reconnect Koi.";
   }
   return message;
 }

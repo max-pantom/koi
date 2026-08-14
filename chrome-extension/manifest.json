@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "Koi Capture",
   "description": "Save images and website previews to a local Koi capture folder with their source details.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "minimum_chrome_version": "102",
-  "permissions": ["activeTab", "contextMenus", "downloads", "storage"],
+  "permissions": ["activeTab", "contextMenus", "downloads", "scripting", "storage"],
   "host_permissions": ["http://*/*", "https://*/*", "http://127.0.0.1:48371/*"],
   "icons": {
     "16": "icons/icon-16.png",
