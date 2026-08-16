@@ -1,3 +1,7 @@
+(() => {
+const SCRIPT_VERSION = globalThis.chrome?.runtime?.getManifest?.().version || "test";
+if (globalThis.KoiImageCandidatesVersion === SCRIPT_VERSION) return;
+
 const ORIGINAL_IMAGE_ATTRIBUTES = [
   "data-original",
   "data-original-src",
@@ -126,3 +130,5 @@ function platformOriginalUrl(value) {
 }
 
 globalThis.KoiImageCandidates = { bestImageUrl, imageIncludesUrl, parseSrcset, platformOriginalUrl };
+globalThis.KoiImageCandidatesVersion = SCRIPT_VERSION;
+})();

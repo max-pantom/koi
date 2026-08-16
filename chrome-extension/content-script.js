@@ -1,3 +1,7 @@
+(() => {
+const SCRIPT_VERSION = chrome.runtime.getManifest().version;
+if (globalThis.KoiContentScriptVersion === SCRIPT_VERSION) return;
+
 const { bestImageUrl, imageIncludesUrl } = globalThis.KoiImageCandidates;
 
 function absoluteUrl(value) {
@@ -76,3 +80,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   });
   return false;
 });
+
+globalThis.KoiContentScriptVersion = SCRIPT_VERSION;
+})();

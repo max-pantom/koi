@@ -20,7 +20,7 @@ import { useKeyboard } from "../state/useKeyboard";
 import { useLibraryStore } from "../state/useLibraryStore";
 import "../styles/app.css";
 
-const EXTENSION_DOWNLOAD_URL = "https://github.com/max-pantom/koi/releases/latest/download/Koi-Capture-0.2.4.zip";
+const EXTENSION_DOWNLOAD_URL = "https://github.com/max-pantom/koi/releases/latest/download/Koi-Capture-0.2.5.zip";
 
 export function App() {
   const store = useLibraryStore();
