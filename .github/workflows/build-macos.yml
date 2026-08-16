@@ -144,6 +144,7 @@ jobs:
       - name: Attach packages to release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TARGET_TAG: ${{ inputs.release_tag || github.ref_name }}
         shell: bash
         run: |
