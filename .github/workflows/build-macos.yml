@@ -1,45 +1,141 @@
-name: Build macOS app
-on:  
-  workflow_dispatch:  
-  push:    
-    branches:      
-      - main
+name: Build desktop release
 
-jobs:  
-  build-macos:    
-    name: Build DMG    
-    runs-on: macos-latest    
-    steps:      
-      - name: Checkout        
-        uses: actions/checkout@v4      
-      
-      - name: Setup Node        
-        uses: actions/setup-node@v4        
-        with:          
-          node-version: 22          
-          cache: npm      
-      
-      - name: Setup Rust        
-        uses: dtolnay/rust-toolchain@stable        
-        with:          
-          # Downloads compilers for both Apple Silicon and Intel
-          targets: aarch64-apple-darwin, x86_64-apple-darwin      
-      
-      - name: Cache Rust        
-        uses: swatinem/rust-cache@v2        
-        with:          
-          workspaces: src-tauri      
-      
-      - name: Install dependencies        
-        run: npm ci      
-      
-      - name: Build DMG        
-        # FIX: Call Tauri directly via npx so the target flag is not dropped
-        run: npx tauri build --target universal-apple-darwin      
-      
-      - name: Upload DMG        
-        uses: actions/upload-artifact@v4        
-        with:          
-          name: Koi-macOS-dmg          
-          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg          
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    name: Prepare GitHub release
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Create draft release for tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
+            gh release create "${GITHUB_REF_NAME}" \
+              --draft \
+              --title "Koi ${GITHUB_REF_NAME}" \
+              --notes-file "docs/release-notes/${GITHUB_REF_NAME}.md"
+
+  build-desktop:
+    name: ${{ matrix.name }}
+    needs: prepare-release
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple Silicon
+            platform: macos-latest
+            rust_targets: aarch64-apple-darwin
+            tauri_args: --target aarch64-apple-darwin --bundles app,dmg
+          - name: macOS Intel
+            platform: macos-latest
+            rust_targets: x86_64-apple-darwin
+            tauri_args: --target x86_64-apple-darwin --bundles app,dmg
+          - name: Windows x64
+            platform: windows-latest
+            rust_targets: x86_64-pc-windows-msvc
+            tauri_args: --target x86_64-pc-windows-msvc --bundles nsis,msi
+          - name: Linux x64
+            platform: ubuntu-22.04
+            rust_targets: x86_64-unknown-linux-gnu
+            tauri_args: --target x86_64-unknown-linux-gnu --bundles appimage,deb
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build and attach tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Koi v__VERSION__
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.tauri_args }}
+
+      - name: Build manual workflow artifact
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: tauri-apps/tauri-action@v1
+        with:
+          uploadWorkflowArtifacts: true
+          args: ${{ matrix.tauri_args }}
+
+  package-extension:
+    name: Package Chrome extension
+    needs: prepare-release
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Test extension
+        run: npm run test:extension
+
+      - name: Package extension
+        run: npm run package:extension
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Koi-Capture
+          path: releases/Koi-Capture-*.zip
           if-no-files-found: error
+
+      - name: Attach extension to tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" releases/Koi-Capture-*.zip --clobber
