@@ -2,6 +2,11 @@ name: Build desktop release
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to rebuild and attach assets to (for example, v0.1.10)
+        required: false
+        type: string
   push:
     tags:
       - "v*"
@@ -17,16 +22,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Create draft release for tag
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Ensure target release exists
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
-            gh release create "${GITHUB_REF_NAME}" \
+          gh release view "${TARGET_TAG}" >/dev/null 2>&1 || \
+            gh release create "${TARGET_TAG}" \
               --draft \
-              --title "Koi ${GITHUB_REF_NAME}" \
-              --notes-file "docs/release-notes/${GITHUB_REF_NAME}.md"
+              --title "Koi ${TARGET_TAG}" \
+              --notes-file "docs/release-notes/${TARGET_TAG}.md"
 
   build-desktop:
     name: ${{ matrix.name }}
@@ -85,20 +91,7 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Build and attach tagged release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Koi v__VERSION__
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.tauri_args }}
-
-      - name: Build manual workflow artifact
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Build desktop package
         uses: tauri-apps/tauri-action@v1
         with:
           uploadWorkflowArtifacts: true
@@ -134,8 +127,47 @@ jobs:
           path: releases/Koi-Capture-*.zip
           if-no-files-found: error
 
-      - name: Attach extension to tagged release
-        if: startsWith(github.ref, 'refs/tags/')
+  attach-release-assets:
+    name: Attach successful packages to release
+    needs:
+      - prepare-release
+      - build-desktop
+      - package-extension
+    if: always() && needs.prepare-release.result == 'success' && (startsWith(github.ref, 'refs/tags/') || inputs.release_tag != '')
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download successful build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Attach packages to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" releases/Koi-Capture-*.zip --clobber
+          TARGET_TAG: ${{ inputs.release_tag || github.ref_name }}
+        shell: bash
+        run: |
+          assets=()
+          while IFS= read -r -d '' asset; do
+            assets+=("${asset}")
+          done < <(
+            find release-assets -type f \
+              \( -name '*.dmg' \
+              -o -name '*.msi' \
+              -o -name '*.exe' \
+              -o -name '*.AppImage' \
+              -o -name '*.deb' \
+              -o -name '*.rpm' \
+              -o -name '*.zip' \
+              -o -name '*.tar.gz' \
+              -o -name '*.sig' \) \
+              -print0
+          )
+
+          if (( ${#assets[@]} == 0 )); then
+            echo "No release packages were produced."
+            exit 1
+          fi
+
+          printf 'Uploading %s\n' "${assets[@]}"
+          gh release upload "${TARGET_TAG}" "${assets[@]}" --clobber
