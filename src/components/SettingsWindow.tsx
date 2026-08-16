@@ -1,6 +1,8 @@
-import { AlignJustify, MessageSquareText, Moon, Volume2, X } from "lucide-react";
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { AlignJustify, Download, MessageSquareText, Moon, Volume2, X } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import type { GridLayout } from "../lib/types";
+import packageInfo from "../../package.json";
 
 export function SettingsWindow({
   isDark,
@@ -13,6 +15,7 @@ export function SettingsWindow({
   onSoundVolumeChange,
   onGridLayoutChange,
   onToggleImageTooltips,
+  onDownloadExtension,
   onClose,
 }: {
   isDark: boolean;
@@ -25,14 +28,20 @@ export function SettingsWindow({
   onSoundVolumeChange: (volume: number) => void;
   onGridLayoutChange: (layout: GridLayout) => void;
   onToggleImageTooltips: () => void;
+  onDownloadExtension: () => void;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLElement>(null);
+  const [appVersion, setAppVersion] = useState(packageInfo.version);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     dialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
     return () => previous?.focus();
+  }, []);
+
+  useEffect(() => {
+    void getVersion().then(setAppVersion).catch(() => undefined);
   }, []);
 
   const keepFocusInside = (event: KeyboardEvent<HTMLElement>) => {
@@ -59,8 +68,8 @@ export function SettingsWindow({
       <section ref={dialogRef} className="settings-window" role="dialog" aria-modal="true" aria-label="Settings" onKeyDown={keepFocusInside} onPointerDown={(event) => event.stopPropagation()}>
         <div className="panel-head">
           <span>Settings</span>
-          <button type="button" onClick={onClose} title="Close">
-            <X size={15} />
+          <button type="button" onClick={onClose} aria-label="Close settings" title="Close">
+            <X size={15} aria-hidden="true" />
           </button>
         </div>
         <button type="button" onClick={onToggleDark}>
@@ -98,6 +107,12 @@ export function SettingsWindow({
           <span>Image name tips</span>
           <kbd>{showImageTooltips ? "On" : "Off"}</kbd>
         </button>
+        <button type="button" onClick={onDownloadExtension}>
+          <Download size={15} aria-hidden="true" />
+          <span>Download extension</span>
+          <kbd aria-hidden="true">↗</kbd>
+        </button>
+        <p className="settings-version">Koi {appVersion}</p>
       </section>
     </div>
   );

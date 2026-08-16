@@ -1,6 +1,6 @@
 {
   "name": "koi",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "build:mac": "tauri build --bundles app,dmg",
-    "build:dmg": "tauri build --bundles dmg"
+    "build:dmg": "tauri build --bundles dmg",
+    "package:extension": "bash scripts/package-extension.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",

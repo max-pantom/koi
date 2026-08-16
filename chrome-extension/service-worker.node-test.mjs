@@ -20,11 +20,11 @@ test("service worker starts and registers its Chrome listeners", async () => {
   assert.equal(registered.every(([, callback]) => typeof callback === "function"), true);
   registered.find(([name]) => name === "installed")[1]();
   assert.deepEqual(menuItems.map(({ id, title }) => [id, title]), [
-    ["koi-save", "Koi"],
-    ["koi-quick-save-image", "Quick save image"],
-    ["koi-save-image-to", "Save image to…"],
-    ["koi-quick-save-page", "Quick save page"],
-    ["koi-save-page-to", "Save page to…"],
+    ["koi-save", "Save to Koi"],
+    ["koi-quick-save-image", "Quick save"],
+    ["koi-save-image-to", "Choose folder…"],
+    ["koi-quick-save-page", "Quick save"],
+    ["koi-save-page-to", "Choose folder…"],
   ]);
   delete globalThis.chrome;
 });

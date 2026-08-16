@@ -14,5 +14,13 @@
 - [x] when your cursor is open an image natively it bring out the name ablility to disable in settings
 - [x] The extension when you press is saying Nothing available here.. so it means its not more working it doesn't see images again on site..
 - [x] cmd + R for reload extension
-- [x] total redesign of right click
-- [ ] tags system and projects moodboard - wait
+- [x] total redesign of right click and left --- it should not show the name of the file also little things there others should be hidden under collapse like things that are alike for example
+- [x] tags system and projects moodboard
+- [x] have versioning in the app
+- [x] colors swatch for images
+- [x] article save
+- [x] gif save
+- [x] performance increase significatly
+- [x] logo in the extension isn't big in size
+- [x] better readme talking about how to dowload both the app and the extension
+- [x] script for github workflow for all dektop, mac both, win and linux. just write in a file ill put it myself

@@ -16,7 +16,7 @@ export function TagEditor({
   const [value, setValue] = useState(item.tags.join(", "));
 
   return (
-    <div className="modal-layer" role="dialog" aria-modal="true" onPointerDown={onClose}>
+    <div className="modal-layer" role="dialog" aria-modal="true" aria-labelledby="tag-editor-title" onPointerDown={onClose}>
       <form
         className="tagger"
         onPointerDown={(event) => event.stopPropagation()}
@@ -26,19 +26,22 @@ export function TagEditor({
         }}
       >
         <div>
-          <h2>{item.name}</h2>
-          <button type="button" onClick={onClose} title="Close">
-            <X size={15} />
+          <h2 id="tag-editor-title">Edit tags</h2>
+          <button type="button" onClick={onClose} aria-label="Close tag editor" title="Close">
+            <X size={15} aria-hidden="true" />
           </button>
         </div>
+        <label htmlFor="image-tags">Tags</label>
         <input
+          id="image-tags"
           ref={inputRef}
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="type tags, comma separated"
+          placeholder="portrait, editorial, blue"
+          autoComplete="off"
         />
         <button type="submit">
-          <Tag size={14} />
+          <Tag size={14} aria-hidden="true" />
           <span>Save tags</span>
         </button>
       </form>

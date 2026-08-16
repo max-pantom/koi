@@ -121,7 +121,7 @@ function renderPendingCapture(capture) {
     pagePreview.hidden = false;
   }
   savePageButton.disabled = false;
-  savePageButton.textContent = capture.type === "KOI_CAPTURE_IMAGE" ? "Save selected image" : "Save page";
+  savePageButton.textContent = capture.type === "KOI_CAPTURE_IMAGE" ? "Save selected image" : "Save page or article";
 }
 
 async function initialiseDestinations() {
@@ -186,10 +186,11 @@ function selectedDestinationFolderId() {
 function renderPage(metadata) {
   pageTitle.textContent = metadata.title || "Untitled page";
   siteName.textContent = metadata.siteName || hostname(metadata.pageUrl);
-  savePageButton.disabled = !metadata.ogImage;
+  const previewUrl = metadata.ogImage || metadata.images?.[0]?.url;
+  savePageButton.disabled = !previewUrl;
 
-  if (metadata.ogImage) {
-    pagePreview.src = metadata.ogImage;
+  if (previewUrl) {
+    pagePreview.src = previewUrl;
     pagePreview.hidden = false;
   }
 

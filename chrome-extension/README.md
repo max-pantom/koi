@@ -1,29 +1,53 @@
 # Koi Capture for Chrome
 
-Koi Capture is a local-first Manifest V3 extension. It saves an image or page preview, then sends its source metadata directly to Koi. Koi maintains one `koi-manifest.json` inside each managed folder; Chrome never downloads a JSON sidecar.
+Koi Capture is Koi’s local-first Manifest V3 browser extension. It saves images, GIFs, and page/article previews, then sends their source metadata directly to the Koi desktop app.
 
-## Install locally
+## Install from a release ZIP
 
-1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Select **Load unpacked** and choose this `chrome-extension` directory.
-4. Open Koi. It creates and watches the standard `Downloads/Koi Captures` folder automatically. If Chrome uses a custom downloads location, add that location's `Koi Captures` folder to Koi once.
+1. Download and unzip the Koi Capture archive from the [Koi releases page](https://github.com/max-pantom/koi/releases).
+2. Open `chrome://extensions` in Chrome.
+3. Enable **Developer mode**.
+4. Select **Load unpacked**.
+5. Choose the unzipped `Koi-Capture-<version>` folder containing `manifest.json`.
+6. Pin Koi Capture from Chrome’s Extensions menu.
+7. Open Koi once. It creates and watches `Downloads/Koi Captures` automatically.
 
-Use the popup to save a page's Open Graph preview or one of its large images. You can also right-click an image or page and select the Koi action. Keep **Ask where to save** on to choose each time, or turn it off and set a **Quick Save folder**.
+For development, choose this repository’s `chrome-extension` directory in step 5. After changing extension code, select **Reload** on its `chrome://extensions` card.
 
-If Koi is closed or a destination becomes unavailable, the capture stays safely in `Downloads/Koi Captures`.
+## Save a capture
 
-Koi waits for Chrome to confirm that both files finished downloading. If a website or CDN interrupts a direct image download, Koi retries through the extension's authenticated fetch permission and reports a precise error if that also fails.
+- Select the toolbar button to browse the current page’s large images or save its page/article preview.
+- Right-click an image, link, or page and choose **Save to Koi → Quick save** to use the default folder.
+- Choose **Save to Koi → Choose folder…** to pick a Koi folder first.
+- In the popup, keep **Ask every time** on to choose a destination for toolbar captures, or turn it off and select a default folder.
 
-## Capture format
+Koi preserves the original supported image format, including GIF, when the website exposes a downloadable media URL. If a CDN blocks the direct download, the extension retries through an authenticated fetch.
 
-A capture is a pair with the same filename stem:
+## How storage works
 
-```text
-20260812T120000Z-abc-example-page.jpg
-koi-manifest.json
+Downloaded media first lands in `Downloads/Koi Captures`. When Koi is open, its local bridge routes the capture into the selected managed folder. If Koi is closed or the selected folder is unavailable, the file remains safely in the capture inbox.
+
+Each managed folder contains one `koi-manifest.json`. The manifest maps captured filenames to their metadata; the extension does not create a separate JSON sidecar for every image.
+
+Stored provenance includes:
+
+- Requested and final post-redirect media URLs
+- Live page URL and canonical URL
+- Destination link for a clickable image
+- Page title, source title, site name, and description
+- Capture type, capture time, and selected Koi folder
+
+## Troubleshooting
+
+- **Unable to read this page:** select **Reload page** in the popup or press `⌘R`/`Ctrl+R` while it is open.
+- **Open Koi:** launch the desktop app, then reopen the extension popup.
+- **Capture saved to the inbox:** add Chrome’s custom download location to Koi, or restore Chrome’s standard Downloads folder.
+- **No downloadable images:** the page may use a canvas, protected media, a `blob:` URL, browser-internal content, or DRM.
+
+## Test
+
+From the repository root:
+
+```bash
+npm run test:extension
 ```
-
-Koi reads the sidecar during its normal folder scan. Websites that do not publish an Open Graph image fall back to the largest usable page image. Browser-internal pages, protected media, `blob:` URLs, canvases, and DRM content may not be downloadable.
-
-Sidecars use schema version 2 and keep provenance values distinct: the requested image URL, Chrome's final post-redirect URL, the live page URL, the page's canonical URL, and the enclosing destination link when the image is clickable. Page title, image title, site name, description, capture time, and selected Koi folder are stored alongside them.

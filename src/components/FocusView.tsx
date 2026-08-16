@@ -49,7 +49,7 @@ export function FocusView({
       className={`preview-layer preview-${mode}${isClosing ? " is-closing" : ""}`}
       role="dialog"
       aria-modal="true"
-      aria-label={item.sourceTitle || item.name}
+      aria-label="Image preview"
       onPointerDown={onClose}
       onContextMenu={(event) => {
         event.preventDefault();
@@ -85,7 +85,7 @@ export function FocusView({
           onPointerDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.stopPropagation()}
         >
-          <img src={mediaSrc(item)} alt={item.sourceTitle || item.name} draggable={false} />
+          <img src={mediaSrc(item)} alt={item.sourceTitle || "Selected image"} draggable={false} />
         </div>
         {showPalette && (
           <div className="focus-palette" onPointerDown={(event) => event.stopPropagation()}>
@@ -112,9 +112,9 @@ export function FocusView({
       >
         <ArrowRight size={18} aria-hidden="true" />
       </button>
-      <div className="preview-caption">
+      {(item.sourceTitle || sourceUrl) && <div className="preview-caption">
         {item.captureType === "link" && <span className="preview-kind">Saved page</span>}
-        <span>{item.sourceTitle || item.name}</span>
+        {item.sourceTitle && <span>{item.sourceTitle}</span>}
         {sourceUrl && (
           <button
             className="preview-source"
@@ -128,7 +128,7 @@ export function FocusView({
             {sourceHost}
           </button>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

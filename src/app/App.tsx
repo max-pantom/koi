@@ -20,6 +20,8 @@ import { useKeyboard } from "../state/useKeyboard";
 import { useLibraryStore } from "../state/useLibraryStore";
 import "../styles/app.css";
 
+const EXTENSION_DOWNLOAD_URL = "https://github.com/max-pantom/koi/releases/latest/download/Koi-Capture-0.2.4.zip";
+
 export function App() {
   const store = useLibraryStore();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -498,7 +500,7 @@ export function App() {
             store.setSelectedIndex(index);
             setContextMenu({
               x: Math.max(8, Math.min(event.clientX, window.innerWidth - 208)),
-              y: Math.max(8, Math.min(event.clientY, window.innerHeight - 286)),
+              y: Math.max(8, Math.min(event.clientY, window.innerHeight - 214)),
               item: store.filteredItems[index],
             });
           }}
@@ -553,6 +555,7 @@ export function App() {
           }}
           onGridLayoutChange={store.setGridLayout}
           onToggleImageTooltips={toggleImageTooltips}
+          onDownloadExtension={() => void openUrl(EXTENSION_DOWNLOAD_URL)}
           onClose={() => setIsSettingsOpen(false)}
         />
       )}
@@ -567,24 +570,10 @@ export function App() {
             void revealItemInDir(contextMenu.item.path);
             setContextMenu(undefined);
           }}
-          onCopyPath={() => {
-            void navigator.clipboard.writeText(contextMenu.item.path);
-            setContextMenu(undefined);
-            playSound("copy");
-          }}
           onCopyImage={() => {
             const item = contextMenu.item;
             setContextMenu(undefined);
             void copyImage(item);
-          }}
-          onCopyName={() => {
-            void navigator.clipboard.writeText(contextMenu.item.name);
-            setContextMenu(undefined);
-            playSound("copy");
-          }}
-          onCopyPalette={() => {
-            copyPalette(contextMenu.item);
-            setContextMenu(undefined);
           }}
           onEditTags={() => {
             setContextMenu(undefined);

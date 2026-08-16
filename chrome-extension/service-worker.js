@@ -12,31 +12,31 @@ function registerContextMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: ROOT_MENU_ID,
-      title: "Koi",
+      title: "Save to Koi",
       contexts: ["image", "page", "link"],
     });
     chrome.contextMenus.create({
       id: "koi-quick-save-image",
       parentId: ROOT_MENU_ID,
-      title: "Quick save image",
+      title: "Quick save",
       contexts: ["image"],
     });
     chrome.contextMenus.create({
       id: "koi-save-image-to",
       parentId: ROOT_MENU_ID,
-      title: "Save image to…",
+      title: "Choose folder…",
       contexts: ["image"],
     });
     chrome.contextMenus.create({
       id: "koi-quick-save-page",
       parentId: ROOT_MENU_ID,
-      title: "Quick save page",
+      title: "Quick save",
       contexts: ["page", "link"],
     });
     chrome.contextMenus.create({
       id: "koi-save-page-to",
       parentId: ROOT_MENU_ID,
-      title: "Save page to…",
+      title: "Choose folder…",
       contexts: ["page", "link"],
     });
   });
