@@ -1,0 +1,5 @@
+interface:
+  display_name: "Project Mockup Studio"
+  short_description: "Create truthful mockups for work in progress"
+  brand_color: "#5F6F52"
+  default_prompt: "Use $project-mockup-studio to turn my real project assets into polished presentation mockups."

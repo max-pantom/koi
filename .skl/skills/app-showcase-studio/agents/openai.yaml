@@ -1,5 +1,0 @@
-interface:
-  display_name: "App Showcase Studio"
-  short_description: "Capture real app UI and create README mockups"
-  brand_color: "#5F6F52"
-  default_prompt: "Use $app-showcase-studio to capture my real app and build a polished README image gallery."
