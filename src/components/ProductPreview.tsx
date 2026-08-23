@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEventHandler } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEventHandler } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -8,32 +8,32 @@ import {
   FolderOpen,
   Image,
   MousePointer2,
-  RotateCcw,
   X,
 } from "lucide-react";
 import koiIcon from "../../src-tauri/icons/128x128@2x.png";
+import dmgBackground from "../../src-tauri/dmg-background.png";
+import applicationsFolderIcon from "../assets/macos-applications-folder.png";
+import libraryPreview from "../assets/onboarding-library.jpg";
 
-type Preview = "installer" | "onboarding";
+export type ProductPreviewKind = "installer" | "onboarding";
 
 const onboardingSteps = [
   {
-    eyebrow: "Welcome to Koi",
-    title: "Your references, close to home.",
-    body: "Turn folders on your Mac into a fast visual library—without accounts, uploads, or a new way to organize.",
+    label: "Welcome",
+    title: "Everything you save,\nin one beautiful place.",
+    body: "Koi turns the folders on your Mac into a fast visual library. No uploads, no accounts, and no new way to organize.",
   },
   {
-    eyebrow: "Your library",
-    title: "Start with folders you already use.",
-    body: "Koi watches the folders you choose. Your originals stay where they are, and you can disconnect a folder at any time.",
+    label: "Your folders",
+    title: "Start with folders\nyou already trust.",
+    body: "Choose the places where your references already live. Koi watches them quietly and never moves the originals.",
   },
   {
-    eyebrow: "Capture anything",
-    title: "Save inspiration while it is fresh.",
-    body: "Drop in files, paste from your clipboard, or use Koi Capture to save images and videos from the web.",
+    label: "Koi Capture",
+    title: "Catch inspiration\nwithout breaking flow.",
+    body: "Drop in files, paste from your clipboard, or save images and videos from the web with Koi Capture.",
   },
 ] as const;
-
-export type ProductPreviewKind = "installer" | "onboarding";
 
 export function ProductPreview({
   initialPreview,
@@ -44,23 +44,69 @@ export function ProductPreview({
   onClose: () => void;
   onStartWindowDrag: PointerEventHandler<HTMLElement>;
 }) {
-  const [preview, setPreview] = useState<Preview>(initialPreview);
+  const [preview, setPreview] = useState<ProductPreviewKind>(initialPreview);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onboardingHeadingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    (initialPreview === "onboarding" ? onboardingHeadingRef.current : closeRef.current)?.focus({ preventScroll: true });
+    return () => previouslyFocused?.focus({ preventScroll: true });
+  }, [initialPreview]);
+
+  const keepFocusInside = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const selectPreview = (nextPreview: ProductPreviewKind) => {
+    setPreview(nextPreview);
+    if (nextPreview === "onboarding") setOnboardingStep(0);
+  };
+
+  const goToOnboardingStep = (nextStep: number) => {
+    setOnboardingStep(nextStep);
+    requestAnimationFrame(() => onboardingHeadingRef.current?.focus({ preventScroll: true }));
+  };
+
+  const movePreviewTab = (event: KeyboardEvent<HTMLButtonElement>, current: ProductPreviewKind) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const next = current === "installer" ? "onboarding" : "installer";
+    selectPreview(next);
+    document.querySelector<HTMLButtonElement>(`[data-preview-tab="${next}"]`)?.focus();
+  };
 
   const step = onboardingSteps[onboardingStep];
 
   return (
-    <section className="product-preview" aria-label="Koi product previews">
+    <section
+      ref={dialogRef}
+      className="product-preview"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Koi product previews"
+      onKeyDown={keepFocusInside}
+    >
       <header className="product-preview-header" onPointerDown={onStartWindowDrag}>
         <div className="product-preview-heading">
           <span>{preview === "installer" ? "Installer" : "Onboarding"}</span>
@@ -71,18 +117,26 @@ export function ProductPreview({
           <button
             type="button"
             role="tab"
+            data-preview-tab="installer"
+            aria-controls="product-preview-surface"
+            tabIndex={preview === "installer" ? 0 : -1}
             aria-selected={preview === "installer"}
             className={preview === "installer" ? "is-active" : undefined}
-            onClick={() => setPreview("installer")}
+            onKeyDown={(event) => movePreviewTab(event, "installer")}
+            onClick={() => selectPreview("installer")}
           >
             Mac installer
           </button>
           <button
             type="button"
             role="tab"
+            data-preview-tab="onboarding"
+            aria-controls="product-preview-surface"
+            tabIndex={preview === "onboarding" ? 0 : -1}
             aria-selected={preview === "onboarding"}
             className={preview === "onboarding" ? "is-active" : undefined}
-            onClick={() => setPreview("onboarding")}
+            onKeyDown={(event) => movePreviewTab(event, "onboarding")}
+            onClick={() => selectPreview("onboarding")}
           >
             Onboarding
           </button>
@@ -93,61 +147,70 @@ export function ProductPreview({
         </button>
       </header>
 
-      <div className="product-preview-stage">
+      <div id="product-preview-surface" className="product-preview-stage" role="tabpanel">
         {preview === "installer" ? (
           <InstallerPreview />
         ) : (
           <div className="onboarding-preview-wrap">
             <div className="onboarding-window">
-              <NativeWindowBar title="Set up Koi" />
+              <NativeWindowBar title="Koi" />
               <div className="onboarding-content">
-                <div className="onboarding-visual" aria-hidden="true">
-                  <OnboardingVisual step={onboardingStep} />
+                <div className="onboarding-copy">
+                  <p className="onboarding-eyebrow">{step.label}</p>
+                  <h1 ref={onboardingHeadingRef} tabIndex={-1}>{step.title}</h1>
+                  <p>{step.body}</p>
                 </div>
 
-                <div className="onboarding-copy">
-                  <p className="onboarding-eyebrow">{step.eyebrow}</p>
-                  <h1>{step.title}</h1>
-                  <p>{step.body}</p>
+                <div className="onboarding-visual" aria-hidden="true">
+                  <OnboardingVisual step={onboardingStep} />
                 </div>
 
                 <div className="onboarding-footer">
                   <div className="onboarding-progress" aria-label={`Step ${onboardingStep + 1} of ${onboardingSteps.length}`}>
                     {onboardingSteps.map((item, index) => (
-                      <span key={item.eyebrow} className={index === onboardingStep ? "is-current" : undefined} />
+                      <button
+                        key={item.label}
+                        type="button"
+                        className={index === onboardingStep ? "is-current" : undefined}
+                        aria-label={`Go to ${item.label}`}
+                        aria-current={index === onboardingStep ? "step" : undefined}
+                        onClick={() => goToOnboardingStep(index)}
+                      />
                     ))}
                   </div>
+
                   <div className="onboarding-actions">
                     {onboardingStep > 0 && (
-                      <button type="button" className="onboarding-secondary" onClick={() => setOnboardingStep((value) => value - 1)}>
-                        <ArrowLeft size={14} aria-hidden="true" />
+                      <button type="button" className="onboarding-secondary" onClick={() => goToOnboardingStep(onboardingStep - 1)}>
+                        <ArrowLeft size={14} strokeWidth={1.8} aria-hidden="true" />
                         Back
                       </button>
                     )}
                     <button
                       type="button"
                       className="onboarding-primary"
-                      onClick={() => setOnboardingStep((value) => Math.min(value + 1, onboardingSteps.length - 1))}
+                      onClick={() => {
+                        if (onboardingStep === onboardingSteps.length - 1) onClose();
+                        else goToOnboardingStep(onboardingStep + 1);
+                      }}
                     >
-                      {onboardingStep === onboardingSteps.length - 1 ? "Open Koi" : "Continue"}
-                      {onboardingStep === onboardingSteps.length - 1 ? <Check size={14} aria-hidden="true" /> : <ArrowRight size={14} aria-hidden="true" />}
+                      {onboardingStep === onboardingSteps.length - 1 ? "Open Koi" : "Next"}
+                      {onboardingStep === onboardingSteps.length - 1
+                        ? <Check size={14} strokeWidth={1.8} aria-hidden="true" />
+                        : <ArrowRight size={14} strokeWidth={1.8} aria-hidden="true" />}
                     </button>
                   </div>
                 </div>
               </div>
             </div>
-            <button className="product-preview-reset" type="button" onClick={() => setOnboardingStep(0)} disabled={onboardingStep === 0}>
-              <RotateCcw size={13} aria-hidden="true" />
-              Restart preview
-            </button>
           </div>
         )}
       </div>
 
       <p className="product-preview-note">
         {preview === "installer"
-          ? "Previewed at the same 660 × 420 proportions as the release DMG."
-          : "This is a visual prototype. It does not run automatically on first launch yet."}
+          ? "This artwork is now connected to the release DMG."
+          : "Shown once on first launch. You can reopen it from Settings anytime."}
       </p>
     </section>
   );
@@ -158,36 +221,19 @@ function InstallerPreview() {
     <div className="installer-preview-wrap">
       <div className="installer-window" role="img" aria-label="Preview of the Koi macOS drag-to-Applications installer">
         <NativeWindowBar title="Koi" />
-        <div className="installer-canvas">
-          <div className="installer-glow is-one" />
-          <div className="installer-glow is-two" />
-          <div className="installer-mark" aria-hidden="true">K</div>
-
+        <div className="installer-canvas" style={{ backgroundImage: `url(${dmgBackground})` }}>
           <div className="installer-item is-koi">
             <img src={koiIcon} alt="" />
             <span>Koi</span>
           </div>
 
-          <div className="installer-arrow" aria-hidden="true">
-            <span />
-            <ArrowRight size={24} strokeWidth={1.5} />
-          </div>
-
           <div className="installer-item is-applications">
-            <div className="applications-icon">
-              <Folder size={64} strokeWidth={1.25} />
-              <span>A</span>
-            </div>
+            <img className="applications-folder-icon" src={applicationsFolderIcon} alt="" />
             <span>Applications</span>
-          </div>
-
-          <div className="installer-instruction">
-            <strong>Drag Koi to Applications</strong>
-            <span>Keep your visual references close to home.</span>
           </div>
         </div>
       </div>
-      <span className="installer-size">660 × 420</span>
+      <span className="installer-size">520 × 620</span>
     </div>
   );
 }
@@ -204,35 +250,40 @@ function NativeWindowBar({ title }: { title: string }) {
 }
 
 function OnboardingVisual({ step }: { step: number }) {
-  if (step === 1) {
-    return (
-      <div className="onboarding-folder-stack">
-        <div><FolderOpen size={21} /><span>Inspiration</span><small>248 items</small></div>
-        <div><FolderOpen size={21} /><span>Brand</span><small>86 items</small></div>
-        <div><FolderOpen size={21} /><span>Archive</span><small>1,204 items</small></div>
-      </div>
-    );
-  }
-
-  if (step === 2) {
-    return (
-      <div className="onboarding-capture">
-        <div className="capture-browser">
-          <span /><span /><span />
-          <div className="capture-image"><Image size={26} /></div>
-          <div className="capture-pointer"><MousePointer2 size={19} fill="currentColor" /></div>
-        </div>
-        <div className="capture-chip"><ClipboardPaste size={15} /> Save to Koi</div>
-      </div>
-    );
-  }
-
   return (
-    <div className="onboarding-welcome-mark">
-      <div className="welcome-tile is-a" />
-      <div className="welcome-tile is-b" />
-      <div className="welcome-tile is-c" />
-      <img src={koiIcon} alt="" />
+    <div className={`onboarding-product-scene is-step-${step}`}>
+      <div className="onboarding-library-window">
+        <div className="onboarding-library-bar">
+          <span /><span /><span />
+          <small>Koi library</small>
+        </div>
+        <img src={libraryPreview} alt="" />
+      </div>
+
+      {step === 0 && (
+        <div className="onboarding-local-chip">
+          <img src={koiIcon} alt="" />
+          <span><strong>3,716 references</strong><small>Indexed locally</small></span>
+        </div>
+      )}
+
+      {step === 1 && (
+        <div className="onboarding-folder-panel">
+          <div className="folder-panel-heading"><FolderOpen size={15} /><span>Choose folders</span></div>
+          <div><FolderOpen size={17} /><span>Inspiration</span><Check size={13} /></div>
+          <div><FolderOpen size={17} /><span>Pond studies</span><Check size={13} /></div>
+          <div className="folder-panel-add"><Folder size={14} /> Add another folder</div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="onboarding-capture-panel">
+          <div className="capture-panel-preview"><Image size={25} /></div>
+          <div className="capture-panel-copy"><small>pond.jpg · original</small><strong>Original image</strong></div>
+          <div className="capture-panel-action"><ClipboardPaste size={14} /> Save to Koi</div>
+          <MousePointer2 className="capture-panel-pointer" size={20} fill="currentColor" />
+        </div>
+      )}
     </div>
   );
 }

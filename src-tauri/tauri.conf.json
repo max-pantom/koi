@@ -22,7 +22,7 @@
         "titleBarStyle": "Overlay",
         "trafficLightPosition": {
           "x": 18,
-          "y": 20
+          "y": 22
         },
         "backgroundColor": "#ffffff",
         "visible": true
@@ -60,17 +60,18 @@
       "entitlements": "Entitlements.plist",
       "infoPlist": "Info.plist",
       "dmg": {
+        "background": "dmg-background.png",
         "windowSize": {
-          "width": 660,
-          "height": 420
+          "width": 520,
+          "height": 620
         },
         "appPosition": {
-          "x": 180,
+          "x": 260,
           "y": 170
         },
         "applicationFolderPosition": {
-          "x": 480,
-          "y": 170
+          "x": 260,
+          "y": 450
         }
       }
     }

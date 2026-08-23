@@ -24,6 +24,15 @@ import { useLibraryStore } from "../state/useLibraryStore";
 import "../styles/app.css";
 
 const EXTENSION_DOWNLOAD_URL = "https://github.com/max-pantom/koi/releases/latest/download/Koi-Capture-0.3.0.zip";
+const ONBOARDING_STORAGE_KEY = "koi.onboarding.v1.completed";
+
+function initialProductPreview(): ProductPreviewKind | undefined {
+  if (import.meta.env.DEV) {
+    const preview = new URLSearchParams(window.location.search).get("preview");
+    if (preview === "installer" || preview === "onboarding") return preview;
+  }
+  return localStorage.getItem(ONBOARDING_STORAGE_KEY) === "true" ? undefined : "onboarding";
+}
 
 export function App() {
   const store = useLibraryStore();
@@ -32,7 +41,7 @@ export function App() {
   const [isTagEditorOpen, setIsTagEditorOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [productPreview, setProductPreview] = useState<ProductPreviewKind>();
+  const [productPreview, setProductPreview] = useState<ProductPreviewKind | undefined>(initialProductPreview);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => localStorage.getItem("koi.sidebar") !== "closed");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDark, setIsDark] = useState(() => localStorage.getItem("koi.theme") === "dark");
@@ -179,6 +188,11 @@ export function App() {
     }, 220);
   };
 
+  const closeProductPreview = () => {
+    if (productPreview === "onboarding") localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
+    setProductPreview(undefined);
+  };
+
   const closeLayer = () => {
     if (previewMode !== "none") closePreview();
     if (isSearchOpen) store.setQuery("");
@@ -187,7 +201,7 @@ export function App() {
     setIsTagEditorOpen(false);
     setIsPaletteOpen(false);
     setIsSettingsOpen(false);
-    setProductPreview(undefined);
+    closeProductPreview();
     setContextMenu(undefined);
     setRoute({ view: "grid" });
   };
@@ -661,7 +675,7 @@ export function App() {
         <ProductPreview
           key={productPreview}
           initialPreview={productPreview}
-          onClose={() => setProductPreview(undefined)}
+          onClose={closeProductPreview}
           onStartWindowDrag={startWindowDrag}
         />
       )}
