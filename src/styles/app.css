@@ -1177,9 +1177,9 @@ button:focus:not(:focus-visible) {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(247, 247, 245, 0.76);
-  -webkit-backdrop-filter: blur(14px) saturate(112%);
-  backdrop-filter: blur(14px) saturate(112%);
+  background: rgba(244, 244, 241, 0.68);
+  -webkit-backdrop-filter: blur(18px) saturate(108%);
+  backdrop-filter: blur(18px) saturate(108%);
 }
 
 [cmdk-dialog] {
@@ -1198,12 +1198,15 @@ button:focus:not(:focus-visible) {
 
 .command-menu {
   display: grid;
-  width: min(520px, calc(100vw - 32px));
+  width: min(492px, calc(100vw - 32px));
   overflow: hidden;
-  border: 1px solid #dcdcd7;
-  border-radius: 13px;
-  background: #ffffff;
-  box-shadow: 0 24px 72px rgba(31, 31, 27, 0.16), 0 2px 10px rgba(31, 31, 27, 0.07);
+  border: 0;
+  border-radius: 16px;
+  background: #fbfbf9;
+  box-shadow:
+    inset 0 0 0 1px rgba(36, 36, 32, 0.12),
+    0 24px 72px rgba(31, 31, 27, 0.18),
+    0 3px 12px rgba(31, 31, 27, 0.08);
 }
 
 .panel-head {
@@ -1534,10 +1537,9 @@ button:focus:not(:focus-visible) {
 .app.is-dark .settings-window,
 .app.is-dark .palette-popover,
 .app.is-dark .context-menu {
-  border-color: #3b3b38;
   color: #e8e8e8;
   background: #1c1c1b;
-  box-shadow: 0 18px 54px #050505;
+  box-shadow: inset 0 0 0 1px #3b3b38, 0 24px 72px rgba(0, 0, 0, 0.52), 0 3px 12px rgba(0, 0, 0, 0.3);
 }
 
 .app.is-dark .panel-head,
@@ -1560,8 +1562,8 @@ button:focus:not(:focus-visible) {
 .app.is-dark .command-search,
 .koi-dark .command-search {
   color: #bdbdb7;
-  background: #282827;
-  box-shadow: inset 0 0 0 1px #3b3b38;
+  background: #20201f;
+  box-shadow: inset 0 -1px #383835;
 }
 
 .app.is-dark .command-search input,
@@ -1581,13 +1583,33 @@ button:focus:not(:focus-visible) {
   background: transparent;
 }
 
-.app.is-dark .command-list [cmdk-item][data-selected="true"],
-.koi-dark .command-list [cmdk-item][data-selected="true"] {
+.app.is-dark .command-menu .command-list [cmdk-item]:hover,
+.koi-dark .command-menu .command-list [cmdk-item]:hover,
+.app.is-dark .command-menu .command-list [cmdk-item][data-selected="true"],
+.koi-dark .command-menu .command-list [cmdk-item][data-selected="true"] {
+  color: #f4f4f0;
   background: #30302e;
+  box-shadow: inset 0 0 0 1px #3a3a37;
+}
+
+.app.is-dark .command-menu .command-list [cmdk-item].is-destructive:hover,
+.koi-dark .command-menu .command-list [cmdk-item].is-destructive:hover,
+.app.is-dark .command-menu .command-list [cmdk-item].is-destructive[data-selected="true"],
+.koi-dark .command-menu .command-list [cmdk-item].is-destructive[data-selected="true"] {
+  color: #ffaaaa;
+  background: #382626;
+  box-shadow: inset 0 0 0 1px #4a3030;
+}
+
+.app.is-dark .command-menu kbd,
+.koi-dark .command-menu kbd {
+  color: #aaa9a3;
+  background: #262625;
+  box-shadow: inset 0 0 0 1px #3b3b38;
 }
 
 .koi-dark [cmdk-overlay] {
-  background: rgba(17, 17, 17, 0.76);
+  background: rgba(10, 10, 10, 0.66);
 }
 
 .app.is-dark .focus-palette {
@@ -1713,23 +1735,28 @@ button:focus:not(:focus-visible) {
 .command-search {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;
-  min-height: 48px;
+  min-height: 52px;
   align-items: center;
-  gap: 8px;
-  padding: 0 13px;
+  gap: 10px;
+  padding: 0 14px;
   border-block-end: 1px solid #e7e7e2;
-  color: #666661;
+  color: #71716b;
   background: #ffffff;
+  transition: box-shadow 100ms ease-out;
+}
+
+.command-search:focus-within {
+  box-shadow: inset 0 -2px #777770;
 }
 
 .command-search input {
   min-width: 0;
-  height: 46px;
+  height: 50px;
   border: 0;
   outline: 0;
   color: #282826;
   background: transparent;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .command-search input::-webkit-search-cancel-button {
@@ -1741,40 +1768,57 @@ button:focus:not(:focus-visible) {
 }
 
 .command-list {
-  display: grid;
+  display: block;
   max-height: min(360px, 58vh);
-  padding: 5px;
+  padding: 6px;
   overflow: auto;
   scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+.command-list [cmdk-group] + [cmdk-group] {
+  margin-block-start: 4px;
+  padding-block-start: 4px;
+  border-block-start: 1px solid #ecece7;
 }
 
 .command-list [cmdk-group-heading] {
-  padding: 8px 9px 4px;
+  padding: 7px 10px 5px;
   color: #8a8a83;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .command-list [cmdk-item] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 38px;
+  min-height: 36px;
   width: 100%;
   gap: 16px;
-  padding: 0 9px;
-  border-radius: 8px;
+  padding: 0 10px;
+  border-radius: 10px;
   color: #444440;
   background: transparent;
-  font-size: 12px;
+  font-size: 12.5px;
   text-align: start;
   cursor: default;
+  transition: color 90ms ease-out, background-color 90ms ease-out, box-shadow 90ms ease-out;
 }
 
+.command-list [cmdk-item]:hover,
 .command-list [cmdk-item][data-selected="true"] {
   color: #252523;
   background: #eeeeea;
+  box-shadow: inset 0 0 0 1px #e3e3de;
+}
+
+.command-list [cmdk-item].is-destructive:hover,
+.command-list [cmdk-item].is-destructive[data-selected="true"] {
+  color: #922f2f;
+  background: #f8e9e7;
+  box-shadow: inset 0 0 0 1px #efd8d4;
 }
 
 .command-list [cmdk-item]:focus-visible {
@@ -1792,6 +1836,27 @@ button:focus:not(:focus-visible) {
 .command-item-label svg {
   flex: 0 0 auto;
   color: #767670;
+}
+
+.command-list [cmdk-item]:hover .command-item-label svg,
+.command-list [cmdk-item][data-selected="true"] .command-item-label svg {
+  color: currentColor;
+}
+
+.command-menu kbd {
+  min-width: 24px;
+  padding: 3px 6px;
+  color: #777770;
+  background: #f2f2ef;
+  box-shadow: inset 0 0 0 1px #e2e2dd;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.koi-dark .command-list [cmdk-group] + [cmdk-group] {
+  border-color: #30302e;
 }
 
 [data-sonner-toaster] {
@@ -1863,6 +1928,9 @@ kbd {
   .sidebar-reveal-chrome,
   .sidebar-toggle,
   .sidebar-search-field,
+  .command-menu,
+  .command-search,
+  .command-menu kbd,
   .thumbnail-control,
   .thumbnail-presets {
     border-color: CanvasText;
@@ -1870,6 +1938,10 @@ kbd {
     box-shadow: none;
   }
 
+  .command-list [cmdk-item][data-selected="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 @keyframes overlay-in {
@@ -1926,12 +1998,15 @@ kbd {
 }
 
 @media (prefers-reduced-transparency: reduce) {
+  [cmdk-overlay],
   .preview-layer,
   .app-toast {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
 
+  [cmdk-overlay] { background: rgba(247, 247, 245, 0.94); }
+  .koi-dark [cmdk-overlay] { background: rgba(17, 17, 17, 0.94); }
   .preview-layer { background: #f7f7f5; }
   .app.is-dark .preview-layer { background: #111; }
 }

@@ -424,7 +424,7 @@ export function App() {
       playSound("search_open");
     } },
     { id: "paste", label: "Save from clipboard", shortcut: "⌘V", keywords: "paste image link", run: () => void pasteClipboard() },
-    { id: "toggle-sidebar", label: isSidebarOpen ? "Hide sidebar" : "Show sidebar", shortcut: "⌃⌘S", keywords: "panel", run: toggleSidebar },
+    ...(!isFullscreen ? [{ id: "toggle-sidebar", label: isSidebarOpen ? "Hide sidebar" : "Show sidebar", shortcut: "⌃⌘S", keywords: "panel", run: toggleSidebar }] : []),
     { id: "rescan", label: "Rescan folders", shortcut: "⌘R", keywords: "refresh reload", run: () => void runLibraryAction(store.rescan, "Library is up to date") },
     ...(store.inboxFolderId ? [{ id: "open-inbox", label: "Open capture inbox", shortcut: "⇧⌘I", keywords: "extension saves", run: () => store.setActiveFolderId(store.inboxFolderId) }] : []),
     ...(store.selectedItem ? [

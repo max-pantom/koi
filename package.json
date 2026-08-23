@@ -1,7 +1,18 @@
 {
   "name": "koi",
   "version": "0.2.0",
+  "description": "A fast, local-first moodboard for your visual references.",
   "private": true,
+  "license": "MIT",
+  "author": "Max Pantom",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/max-pantom/koi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/max-pantom/koi/issues"
+  },
+  "homepage": "https://github.com/max-pantom/koi#readme",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -2,7 +2,10 @@
 name = "koi"
 version = "0.2.0"
 description = "A tiny local moodboard for folders."
-authors = ["koi"]
+authors = ["Max Pantom"]
+license = "MIT"
+repository = "https://github.com/max-pantom/koi"
+homepage = "https://github.com/max-pantom/koi"
 edition = "2021"
 
 [build-dependencies]

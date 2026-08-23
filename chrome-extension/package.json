@@ -1,6 +1,13 @@
 {
   "name": "koi-capture",
   "version": "0.3.0",
+  "description": "Save visual references from Chrome to Koi.",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/max-pantom/koi.git",
+    "directory": "chrome-extension"
+  },
   "type": "module"
 }

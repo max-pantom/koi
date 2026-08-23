@@ -59,6 +59,7 @@ export function CommandMenu({
             {group.commands.map((command) => (
               <CommandPrimitive.Item
                 key={command.id}
+                className={command.id === "delete" ? "is-destructive" : undefined}
                 value={command.label}
                 keywords={command.keywords?.split(/\s+/).filter(Boolean)}
                 onSelect={() => runCommand(command)}
@@ -67,7 +68,7 @@ export function CommandMenu({
                   {commandIcon(command.id)}
                   <span>{command.label}</span>
                 </span>
-                {command.shortcut && <kbd>{command.shortcut}</kbd>}
+                {command.shortcut && <kbd aria-hidden="true">{command.shortcut}</kbd>}
               </CommandPrimitive.Item>
             ))}
           </CommandPrimitive.Group>

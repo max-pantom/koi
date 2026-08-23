@@ -1,79 +1,38 @@
 # Koi
 
-Koi is a fast, local-first moodboard for image folders. It keeps your references on your computer, supports images, GIFs, videos, saved pages, and readable articles, and adds search, tags, color palettes, source provenance, and keyboard navigation without requiring an account or cloud sync.
+Your visual references, close to home.
 
-The optional Koi Capture browser extension saves images, GIFs, videos, pages, and articles from Chrome into Koi with their original source information. Supported social post links resolve to their actual downloadable media instead of becoming generic saved pages.
+Koi is a fast, local-first moodboard for images, GIFs, videos, saved pages, and articles. Everything stays in folders on your computer—no account or cloud sync required.
 
-## Preview
+![Koi's dark moodboard showing a visual reference library](docs/images/koi-library.png)
 
-### Real Koi 0.2.0 build
+## What you can do
 
-![Koi's dark local moodboard grid showing a varied visual reference library](docs/images/koi-library.png)
+- Turn local folders into moodboards
+- Search by name, folder, tag, color, or source
+- Browse large libraries without slowing down
+- Save useful pages and media with their original source
+- Copy, preview, organize, and delete files with keyboard shortcuts
 
-### Studio presentation
+## Get Koi
 
-![Koi displayed on a desktop monitor in a quiet contemporary design studio](docs/images/koi-studio.jpg)
+Download the latest version from [Koi releases](https://github.com/max-pantom/koi/releases).
 
-## Install Koi
+- **macOS:** choose the `.dmg` for Apple Silicon (`arm64`) or Intel (`x64`)
+- **Windows:** choose the `.msi` or `.exe`
+- **Linux:** choose the `.AppImage` or `.deb`
 
-### macOS
+Open Koi, select **Add folder**, and choose a folder of references. If macOS blocks an unsigned build, allow Koi from **System Settings → Privacy & Security** only when you downloaded it from this repository.
 
-1. Open the [Koi releases page](https://github.com/max-pantom/koi/releases).
-2. Download the macOS `.dmg` for your Mac:
-   - `aarch64` or `arm64` for Apple Silicon (M1 and newer).
-   - `x64` or `x86_64` for an Intel Mac.
-3. Open the DMG and drag Koi into **Applications**.
-4. Open Koi and select **Add folder** to add your first image folder.
+## Save from Chrome
 
-If macOS blocks an unsigned development build, open **System Settings → Privacy & Security** and select **Open Anyway** for Koi. Only bypass this warning for a build you downloaded from this repository.
+[Koi Capture](chrome-extension/README.md) is the optional Chrome extension. It saves images, GIFs, videos, pages, and articles straight into Koi while keeping their source details.
 
-### Windows and Linux
+Download the extension ZIP from [Koi releases](https://github.com/max-pantom/koi/releases), unzip it, then load the folder from `chrome://extensions` with **Developer mode** enabled.
 
-Download the installer for your operating system from the [Koi releases page](https://github.com/max-pantom/koi/releases):
+## Build it locally
 
-- Windows: `.msi` or `.exe`
-- Linux: `.AppImage` or `.deb`
-
-Platform builds are produced independently, so a release may not contain every format yet.
-
-## Install Koi Capture
-
-Koi Capture is currently installed as an unpacked Chrome extension:
-
-1. Download the extension ZIP from the [Koi releases page](https://github.com/max-pantom/koi/releases), then unzip it.
-2. In Chrome, open `chrome://extensions`.
-3. Turn on **Developer mode**.
-4. Select **Load unpacked**.
-5. Choose the unzipped `Koi-Capture-<version>` folder—the folder containing `manifest.json`.
-6. Pin **Koi Capture** from Chrome’s Extensions menu.
-7. Open the Koi desktop app once so it can create and watch `Downloads/Koi Captures`.
-
-The extension and desktop app work together locally. The extension downloads the media, then sends its source details to Koi. If Koi is closed, the capture remains in `Downloads/Koi Captures` and appears after Koi opens and scans the folder.
-
-## Capture from Chrome
-
-- Select the Koi Capture toolbar button to browse large images on the current page or save the page/article preview.
-- Right-click an image, link, or page and choose **Save to Koi → Quick save** to use your default folder.
-- Choose **Save to Koi → Choose folder…** to select a destination before saving.
-- Saving a supported X/Twitter, Instagram, TikTok, Facebook, Threads, Bluesky, or Pinterest post link downloads the post's images or videos as normal media.
-- Koi preserves GIF files when the website exposes the original GIF URL.
-
-Some browser-internal pages, protected media, canvases, `blob:` URLs, and DRM content cannot be downloaded by an extension.
-
-## What Koi supports
-
-- Local folders as independent moodboards
-- JPEG, PNG, GIF, WebP, AVIF, SVG, TIFF, BMP, HEIC, and HEIF references
-- Packed and aligned virtualized grids for large libraries
-- Search across filenames, folders, tags, colors, and source metadata
-- Extracted color swatches with copyable hex values
-- Saved pages and articles with a clear **Saved page** label and source link
-- One `koi-manifest.json` per managed folder for capture metadata
-- Quick Look, keyboard navigation, copy, reveal, and move-to-Trash actions
-
-## Build from source
-
-Requirements: Node.js 22+, Rust stable, and the [Tauri 2 platform prerequisites](https://v2.tauri.app/start/prerequisites/).
+You’ll need Node.js 22+, stable Rust, and the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```bash
 npm ci
@@ -81,23 +40,10 @@ npm test
 npm run tauri dev
 ```
 
-Create a production bundle with:
+Create a production build with `npm run tauri -- build`.
 
-```bash
-npm run tauri -- build
-```
+## Join in
 
-Version numbers live in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`. The installed version is also shown at the bottom of Koi’s Settings window.
+Ideas, bug reports, and pull requests are welcome. Read [Contributing](CONTRIBUTING.md) to get started, and please follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-Creating a tag such as `v0.2.0` runs the release workflow and prepares a draft GitHub release containing the desktop installers and the packaged Chrome extension.
-
-## Project structure
-
-```text
-src/                 React desktop interface
-src-tauri/           Rust/Tauri desktop backend
-chrome-extension/    Manifest V3 browser extension
-docs/                Architecture and release notes
-```
-
-See [chrome-extension/README.md](chrome-extension/README.md) for extension internals and troubleshooting.
+Koi is available under the [MIT License](LICENSE).
