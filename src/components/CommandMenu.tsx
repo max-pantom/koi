@@ -4,6 +4,8 @@ import {
   Copy,
   FolderOpen,
   FolderPlus,
+  MonitorDown,
+  Sparkles,
   Image,
   Maximize2,
   PanelLeft,
@@ -82,7 +84,7 @@ function commandGroups(commands: Command[]) {
   const groups = [
     { name: "Library", ids: new Set(["add-folder", "search", "paste", "toggle-sidebar", "rescan", "open-inbox"]) },
     { name: "Selection", ids: new Set(["copy-image", "reveal", "palette", "edit-tags", "delete"]) },
-    { name: "Koi", ids: new Set(["toggle-dark", "check-update", "settings"]) },
+    { name: "Koi", ids: new Set(["toggle-dark", "check-update", "preview-installer", "preview-onboarding", "settings"]) },
   ];
   return groups
     .map((group) => ({ ...group, commands: commands.filter((command) => group.ids.has(command.id)) }))
@@ -104,6 +106,8 @@ function commandIcon(id: string) {
   if (id === "delete") return <Trash2 {...props} />;
   if (id === "toggle-dark") return <SunMoon {...props} />;
   if (id === "check-update") return <RefreshCw {...props} />;
+  if (id === "preview-installer") return <MonitorDown {...props} />;
+  if (id === "preview-onboarding") return <Sparkles {...props} />;
   if (id === "settings") return <Settings2 {...props} />;
   return <Maximize2 {...props} />;
 }

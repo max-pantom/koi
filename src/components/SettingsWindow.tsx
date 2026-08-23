@@ -1,4 +1,4 @@
-import { AlignJustify, ChevronDown, Download, MessageSquareText, Moon, Palette, RefreshCw, Volume2, X } from "lucide-react";
+import { AlignJustify, ChevronDown, Download, MessageSquareText, MonitorDown, Moon, Palette, RefreshCw, Sparkles, Volume2, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import type { GridLayout } from "../lib/types";
@@ -21,6 +21,8 @@ export function SettingsWindow({
   onColorFormatChange,
   onDownloadExtension,
   onCheckForUpdates,
+  onPreviewInstaller,
+  onPreviewOnboarding,
   onClose,
 }: {
   isDark: boolean;
@@ -38,6 +40,8 @@ export function SettingsWindow({
   onColorFormatChange: (format: ColorFormat) => void;
   onDownloadExtension: () => void;
   onCheckForUpdates: () => void;
+  onPreviewInstaller: () => void;
+  onPreviewOnboarding: () => void;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLElement>(null);
@@ -147,6 +151,16 @@ export function SettingsWindow({
         <button type="button" onClick={onDownloadExtension}>
           <Download size={15} aria-hidden="true" />
           <span>Download extension</span>
+          <kbd aria-hidden="true">↗</kbd>
+        </button>
+        <button type="button" onClick={onPreviewInstaller}>
+          <MonitorDown size={15} aria-hidden="true" />
+          <span>Preview installer</span>
+          <kbd aria-hidden="true">↗</kbd>
+        </button>
+        <button type="button" onClick={onPreviewOnboarding}>
+          <Sparkles size={15} aria-hidden="true" />
+          <span>Preview onboarding</span>
           <kbd aria-hidden="true">↗</kbd>
         </button>
         <button type="button" onClick={onCheckForUpdates} disabled={updateStatus === "Checking…" || updateStatus === "Downloading…" || updateStatus === "Installing…"}>

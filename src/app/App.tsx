@@ -5,6 +5,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { CommandMenu } from "../components/CommandMenu";
+import { ProductPreview, type ProductPreviewKind } from "../components/ProductPreview";
 import { FocusView } from "../components/FocusView";
 import { MediaContextMenu } from "../components/MediaContextMenu";
 import { MediaGrid } from "../components/MediaGrid";
@@ -31,6 +32,7 @@ export function App() {
   const [isTagEditorOpen, setIsTagEditorOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [productPreview, setProductPreview] = useState<ProductPreviewKind>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => localStorage.getItem("koi.sidebar") !== "closed");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDark, setIsDark] = useState(() => localStorage.getItem("koi.theme") === "dark");
@@ -185,6 +187,7 @@ export function App() {
     setIsTagEditorOpen(false);
     setIsPaletteOpen(false);
     setIsSettingsOpen(false);
+    setProductPreview(undefined);
     setContextMenu(undefined);
     setRoute({ view: "grid" });
   };
@@ -412,7 +415,7 @@ export function App() {
   const startWindowDrag = (event: PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement;
-    if (target.closest("button, input, select, textarea, a, [role='slider'], .tile, .grid-wrap, .article-reader-wrap, .preview-layer, .modal-layer, .settings-layer")) return;
+    if (target.closest("button, input, select, textarea, a, [role='slider'], .tile, .grid-wrap, .article-reader-wrap, .preview-layer, .modal-layer, .settings-layer, .product-preview-stage")) return;
     void getCurrentWindow().startDragging();
   };
 
@@ -436,6 +439,14 @@ export function App() {
     ] : []),
     { id: "toggle-dark", label: isDark ? "Use light appearance" : "Use dark appearance", shortcut: "M", keywords: "theme mode", run: toggleDarkMode },
     { id: "check-update", label: "Check for updates", keywords: "upgrade version release", run: () => void checkForUpdates() },
+    { id: "preview-installer", label: "Preview Mac installer", keywords: "dmg setup install drag applications", run: () => {
+      setProductPreview("installer");
+      setIsSettingsOpen(false);
+    } },
+    { id: "preview-onboarding", label: "Preview onboarding", keywords: "welcome setup first launch", run: () => {
+      setProductPreview("onboarding");
+      setIsSettingsOpen(false);
+    } },
     { id: "settings", label: "Open settings", shortcut: "⌘,", keywords: "preferences sound layout", run: () => setIsSettingsOpen(true) },
   ];
 
@@ -585,7 +596,7 @@ export function App() {
 
   return (
     <main className={`${isFocusOpen ? "app is-previewing" : "app"}${isDark ? " is-dark" : ""}${isSidebarOpen && !isFullscreen ? "" : " is-sidebar-collapsed"}${isFullscreen ? " is-fullscreen" : ""}`}>
-      {!isFullscreen && <Sidebar
+      {!productPreview && !isFullscreen && <Sidebar
         folders={store.folders}
         activeFolderId={store.activeFolderId}
         folderCounts={folderCounts}
@@ -607,7 +618,7 @@ export function App() {
         searchRef={searchRef}
       />}
 
-      <section className="workspace">
+      {!productPreview && <section className="workspace">
         <div className="workspace-titlebar-drag" aria-hidden="true" onPointerDown={startWindowDrag} />
         <MediaGrid
           items={store.filteredItems}
@@ -644,7 +655,16 @@ export function App() {
         />
         <div className="grid-edge-blur is-top" aria-hidden="true" />
         <div className="grid-edge-blur is-bottom" aria-hidden="true" />
-      </section>
+      </section>}
+
+      {productPreview && (
+        <ProductPreview
+          key={productPreview}
+          initialPreview={productPreview}
+          onClose={() => setProductPreview(undefined)}
+          onStartWindowDrag={startWindowDrag}
+        />
+      )}
 
       <Toaster
         position="bottom-right"
@@ -655,7 +675,7 @@ export function App() {
         toastOptions={{ className: "koi-toast" }}
       />
 
-      {missingCount > 0 && (
+      {!productPreview && missingCount > 0 && (
         <button className="missing-toast" type="button" onClick={() => resolveFolder()}>
           {missingCount} missing · Locate folder
         </button>
@@ -701,6 +721,14 @@ export function App() {
             setColorFormat(format);
           }}
           onDownloadExtension={() => void openUrl(EXTENSION_DOWNLOAD_URL)}
+          onPreviewInstaller={() => {
+            setIsSettingsOpen(false);
+            setProductPreview("installer");
+          }}
+          onPreviewOnboarding={() => {
+            setIsSettingsOpen(false);
+            setProductPreview("onboarding");
+          }}
           onCheckForUpdates={() => void checkForUpdates()}
           onClose={() => setIsSettingsOpen(false)}
         />
