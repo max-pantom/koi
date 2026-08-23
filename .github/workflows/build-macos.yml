@@ -93,8 +93,17 @@ jobs:
 
       - name: Build desktop package
         uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           uploadWorkflowArtifacts: true
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
+          retryAttempts: 3
+          tagName: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+          releaseDraft: true
           args: ${{ matrix.tauri_args }}
 
   package-extension:
@@ -136,9 +145,10 @@ jobs:
     if: always() && needs.prepare-release.result == 'success' && (startsWith(github.ref, 'refs/tags/') || inputs.release_tag != '')
     runs-on: ubuntu-22.04
     steps:
-      - name: Download successful build artifacts
+      - name: Download packaged extension
         uses: actions/download-artifact@v4
         with:
+          name: Koi-Capture
           path: release-assets
 
       - name: Attach packages to release
@@ -152,17 +162,7 @@ jobs:
           while IFS= read -r -d '' asset; do
             assets+=("${asset}")
           done < <(
-            find release-assets -type f \
-              \( -name '*.dmg' \
-              -o -name '*.msi' \
-              -o -name '*.exe' \
-              -o -name '*.AppImage' \
-              -o -name '*.deb' \
-              -o -name '*.rpm' \
-              -o -name '*.zip' \
-              -o -name '*.tar.gz' \
-              -o -name '*.sig' \) \
-              -print0
+            find release-assets -type f -name 'Koi-Capture-*.zip' -print0
           )
 
           if (( ${#assets[@]} == 0 )); then
