@@ -1,0 +1,33 @@
+name: Feature request
+description: Share an idea that could make Koi more useful.
+title: "[Idea]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for sharing your idea. A little context helps us understand it.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Describe the need or problem behind your idea.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: Describe your preferred solution, if you have one.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried?
+      description: Share any workarounds or alternatives you considered.
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Add examples, sketches, or screenshots that explain the idea.
