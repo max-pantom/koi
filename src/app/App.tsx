@@ -32,6 +32,7 @@ export function App() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => localStorage.getItem("koi.sidebar") !== "closed");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDark, setIsDark] = useState(() => localStorage.getItem("koi.theme") === "dark");
   const [soundsEnabled, setSoundsEnabledState] = useState(() => areSoundsEnabled());
   const [soundVolume, setSoundVolumeState] = useState(() => getSoundVolume());
@@ -57,6 +58,29 @@ export function App() {
     document.documentElement.classList.toggle("koi-dark", isDark);
     return () => document.documentElement.classList.remove("koi-dark");
   }, [isDark]);
+
+  useEffect(() => {
+    const appWindow = getCurrentWindow();
+    let isDisposed = false;
+    let unlisten: (() => void) | undefined;
+
+    const syncFullscreenState = () => {
+      void appWindow.isFullscreen().then((fullscreen) => {
+        if (!isDisposed) setIsFullscreen(fullscreen);
+      });
+    };
+
+    syncFullscreenState();
+    void appWindow.onResized(syncFullscreenState).then((cleanup) => {
+      if (isDisposed) cleanup();
+      else unlisten = cleanup;
+    });
+
+    return () => {
+      isDisposed = true;
+      unlisten?.();
+    };
+  }, []);
 
   const isFocusOpen = previewMode !== "none" && !!store.selectedItem;
   const activeFolder =
@@ -294,7 +318,9 @@ export function App() {
     setIsSidebarOpen(isOpen);
   };
 
-  const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
+  const toggleSidebar = () => {
+    if (!isFullscreen) setSidebarOpen(!isSidebarOpen);
+  };
 
   const showToast = (message: string, tone: ToastTone, duration = 2600) => {
     const options = { duration: tone === "error" ? Infinity : duration, closeButton: tone === "error" };
@@ -558,8 +584,8 @@ export function App() {
   }, []);
 
   return (
-    <main className={`${isFocusOpen ? "app is-previewing" : "app"}${isDark ? " is-dark" : ""}${isSidebarOpen ? "" : " is-sidebar-collapsed"}`}>
-      <Sidebar
+    <main className={`${isFocusOpen ? "app is-previewing" : "app"}${isDark ? " is-dark" : ""}${isSidebarOpen && !isFullscreen ? "" : " is-sidebar-collapsed"}${isFullscreen ? " is-fullscreen" : ""}`}>
+      {!isFullscreen && <Sidebar
         folders={store.folders}
         activeFolderId={store.activeFolderId}
         folderCounts={folderCounts}
@@ -579,7 +605,7 @@ export function App() {
         onToggle={toggleSidebar}
         onStartWindowDrag={startWindowDrag}
         searchRef={searchRef}
-      />
+      />}
 
       <section className="workspace">
         <div className="workspace-titlebar-drag" aria-hidden="true" onPointerDown={startWindowDrag} />

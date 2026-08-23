@@ -544,12 +544,21 @@ button:focus:not(:focus-visible) {
   height: 40px;
 }
 
+.app.is-fullscreen .workspace-titlebar-drag,
+.app.is-fullscreen .grid-edge-blur.is-top {
+  display: none;
+}
+
 .grid-wrap {
   position: relative;
   height: 100%;
   overflow: auto;
   padding: 44px 6px 40px;
   overscroll-behavior: contain;
+}
+
+.app.is-fullscreen .grid-wrap {
+  padding-top: 0;
 }
 
 .mood-grid {
