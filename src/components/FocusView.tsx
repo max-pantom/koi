@@ -1,9 +1,10 @@
 import { ArrowLeft, ArrowRight, ExternalLink, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type WheelEvent } from "react";
-import { mediaSrc } from "../lib/media";
+import { isGeneratedLinkPlaceholder, mediaSrc, sourceHostname } from "../lib/media";
 import type { MediaItem } from "../lib/types";
 import { formatColor, type ColorFormat } from "../lib/colors";
 import { ArticleReader } from "./ArticleReader";
+import { SavedPageCard } from "./SavedPageCard";
 
 export function FocusView({
   item,
@@ -32,17 +33,22 @@ export function FocusView({
 }) {
   const lastWheelAt = useRef(0);
   const [videoError, setVideoError] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const sourceUrl = item.sourceLinkUrl
     || item.sourcePageUrl
     || item.sourceCanonicalUrl
     || item.sourceFinalUrl
     || item.sourceUrl;
-  const sourceHost = sourceHostname(sourceUrl) || item.sourceSiteName || "Open source";
+  const sourceHost = sourceHostname(item);
   const imageRatio = item.width && item.height ? item.width / item.height : 1;
   const isArticle = item.captureType === "article" && !!item.sourceContentMarkdown;
   const isVideo = item.kind === "video";
+  const isLinkPlaceholder = isGeneratedLinkPlaceholder(item);
 
-  useEffect(() => setVideoError(false), [item.id]);
+  useEffect(() => {
+    setVideoError(false);
+    setImageError(false);
+  }, [item.id]);
 
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest(".article-reader-wrap")) return;
@@ -67,7 +73,9 @@ export function FocusView({
       }}
       onWheel={onWheel}
     >
-      {!isArticle && !isVideo && <img className="preview-blur" src={mediaSrc(item)} alt="" draggable={false} />}
+      {!isArticle && !isVideo && !imageError && !isLinkPlaceholder && (
+        <img className="preview-blur" src={mediaSrc(item)} alt="" draggable={false} />
+      )}
       <button
         className="preview-close"
         type="button"
@@ -111,6 +119,10 @@ export function FocusView({
             <strong>This video codec can’t play inside Koi.</strong>
             <span>The file is still saved. Use the source or Finder action to open it in another player.</span>
           </div>
+        ) : imageError || isLinkPlaceholder ? (
+          <div className="preview-saved-page" onPointerDown={(event) => event.stopPropagation()}>
+            <SavedPageCard item={item} unavailable={imageError && !isLinkPlaceholder} />
+          </div>
         ) : (
           <div
             className="preview-image-frame"
@@ -118,7 +130,12 @@ export function FocusView({
             onPointerDown={(event) => event.stopPropagation()}
             onContextMenu={(event) => event.stopPropagation()}
           >
-            <img src={mediaSrc(item)} alt={item.sourceTitle || "Selected image"} draggable={false} />
+            <img
+              src={mediaSrc(item)}
+              alt={item.sourceTitle || "Selected image"}
+              draggable={false}
+              onError={() => setImageError(true)}
+            />
           </div>
         )}
       </div>
@@ -168,13 +185,4 @@ export function FocusView({
       </div>}
     </div>
   );
-}
-
-function sourceHostname(value?: string) {
-  if (!value) return "";
-  try {
-    return new URL(value).hostname.replace(/^www\./, "");
-  } catch {
-    return "";
-  }
 }

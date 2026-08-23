@@ -13,6 +13,7 @@ import { TagEditor } from "../components/TagEditor";
 import { Sidebar } from "../components/Sidebar";
 import { Toaster, toast } from "sonner";
 import { mediaSrc } from "../lib/media";
+import { checkForKoiUpdate, installKoiUpdate, type KoiUpdate } from "../lib/updater";
 import { formatColor, type ColorFormat } from "../lib/colors";
 import { areSoundsEnabled, getSoundVolume, playSound, setSoundVolume, setSoundsEnabled } from "../lib/sound";
 import type { MediaItem } from "../lib/types";
@@ -45,9 +46,12 @@ export function App() {
   const [previewMode, setPreviewMode] = useState<"none" | "quick" | "focus">("none");
   const [isPreviewClosing, setIsPreviewClosing] = useState(false);
   const [route, setRoute] = useState(initialRoute);
+  const [updateStatus, setUpdateStatus] = useState("Ready");
   const searchRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const menuEventHandlerRef = useRef<(id: string) => void>(() => undefined);
+  const updateCheckInFlight = useRef(false);
+  const availableUpdate = useRef<KoiUpdate>();
 
   useEffect(() => {
     document.documentElement.classList.toggle("koi-dark", isDark);
@@ -301,6 +305,66 @@ export function App() {
     return toast(message, options);
   };
 
+  const installAvailableUpdate = async (update: KoiUpdate) => {
+    setUpdateStatus("Downloading…");
+    try {
+      await installKoiUpdate(update, ({ phase, percent }) => {
+        const label = phase === "installing"
+          ? "Installing update…"
+          : `Downloading update${percent === undefined ? "…" : ` · ${percent}%`}`;
+        setUpdateStatus(phase === "installing" ? "Installing…" : percent === undefined ? "Downloading…" : `${percent}%`);
+        toast.loading(label, { id: "koi-update-progress", duration: Infinity });
+      });
+    } catch (error) {
+      setUpdateStatus("Try again");
+      toast.error(`Couldn’t install the update · ${String(error)}`, {
+        id: "koi-update-progress",
+        duration: Infinity,
+        closeButton: true,
+      });
+    }
+  };
+
+  const checkForUpdates = async (manual = true) => {
+    if (updateCheckInFlight.current) return;
+    if (availableUpdate.current) {
+      toast("A Koi update is ready", {
+        id: "koi-update-available",
+        duration: Infinity,
+        action: { label: "Install", onClick: () => void installAvailableUpdate(availableUpdate.current!) },
+      });
+      return;
+    }
+    updateCheckInFlight.current = true;
+    setUpdateStatus("Checking…");
+    try {
+      const update = await checkForKoiUpdate();
+      if (!update) {
+        setUpdateStatus("Up to date");
+        if (manual) toast.success("Koi is up to date");
+        return;
+      }
+      availableUpdate.current = update;
+      setUpdateStatus(`Koi ${update.version}`);
+      toast(`Koi ${update.version} is available`, {
+        id: "koi-update-available",
+        description: update.body || "Download the update and relaunch Koi.",
+        duration: Infinity,
+        action: { label: "Install", onClick: () => void installAvailableUpdate(update) },
+      });
+    } catch (error) {
+      setUpdateStatus("Try again");
+      if (manual) showToast(`Couldn’t check for updates · ${String(error)}`, "error", 5200);
+    } finally {
+      updateCheckInFlight.current = false;
+    }
+  };
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void checkForUpdates(false), 4_500);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
   const runLibraryAction = async (action: () => Promise<boolean>, success: string, tone: ToastTone = "success") => {
     if (await action()) showToast(success, tone);
   };
@@ -345,6 +409,7 @@ export function App() {
       { id: "delete", label: "Move image to Trash", shortcut: "⌫", keywords: "delete remove", run: () => void deleteItem() },
     ] : []),
     { id: "toggle-dark", label: isDark ? "Use light appearance" : "Use dark appearance", shortcut: "M", keywords: "theme mode", run: toggleDarkMode },
+    { id: "check-update", label: "Check for updates", keywords: "upgrade version release", run: () => void checkForUpdates() },
     { id: "settings", label: "Open settings", shortcut: "⌘,", keywords: "preferences sound layout", run: () => setIsSettingsOpen(true) },
   ];
 
@@ -596,6 +661,7 @@ export function App() {
           gridLayout={store.gridLayout}
           showImageTooltips={showImageTooltips}
           colorFormat={colorFormat}
+          updateStatus={updateStatus}
           onToggleDark={toggleDarkMode}
           onToggleSounds={toggleSounds}
           onSoundVolumeChange={(volume) => {
@@ -609,6 +675,7 @@ export function App() {
             setColorFormat(format);
           }}
           onDownloadExtension={() => void openUrl(EXTENSION_DOWNLOAD_URL)}
+          onCheckForUpdates={() => void checkForUpdates()}
           onClose={() => setIsSettingsOpen(false)}
         />
       )}

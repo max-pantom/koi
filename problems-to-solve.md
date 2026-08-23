@@ -62,3 +62,6 @@
 - [x] add real app screenshots and aesthetic product mockups to the README and images folder
 - [x] add the reusable `.skl` app showcase skill
 - [x] present the Koi icon in a macOS-style Dock mockup
+- [x] replace striped pasted-link placeholders with a proper saved-page preview card
+- [x] add an earthy Dock mockup and an original-dark Dock edit using the alternate Koi icon
+- [x] add signed automatic app updates with a manual check in Settings

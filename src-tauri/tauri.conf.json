@@ -38,6 +38,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["dmg"],
     "icon": [
       "icons/32x32.png",
@@ -53,6 +54,7 @@
     "macOS": {
       "bundleName": "Koi",
       "bundleVersion": "1",
+      "signingIdentity": "-",
       "minimumSystemVersion": "12.0",
       "hardenedRuntime": true,
       "entitlements": "Entitlements.plist",
@@ -70,6 +72,17 @@
           "x": 480,
           "y": 170
         }
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY1Q0VBQzEzMUFFRDg4NzQKUldSMGlPMGFFNnpPWmRtOHhocXlzZVYwamUrU3JvaGdzMWhteVZraWg1ajQ1N25nWUczZUtncGIK",
+      "endpoints": [
+        "https://github.com/max-pantom/koi/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

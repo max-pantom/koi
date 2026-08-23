@@ -1,4 +1,4 @@
-import { AlignJustify, ChevronDown, Download, MessageSquareText, Moon, Palette, Volume2, X } from "lucide-react";
+import { AlignJustify, ChevronDown, Download, MessageSquareText, Moon, Palette, RefreshCw, Volume2, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import type { GridLayout } from "../lib/types";
@@ -12,6 +12,7 @@ export function SettingsWindow({
   gridLayout,
   showImageTooltips,
   colorFormat,
+  updateStatus,
   onToggleDark,
   onToggleSounds,
   onSoundVolumeChange,
@@ -19,6 +20,7 @@ export function SettingsWindow({
   onToggleImageTooltips,
   onColorFormatChange,
   onDownloadExtension,
+  onCheckForUpdates,
   onClose,
 }: {
   isDark: boolean;
@@ -27,6 +29,7 @@ export function SettingsWindow({
   gridLayout: GridLayout;
   showImageTooltips: boolean;
   colorFormat: ColorFormat;
+  updateStatus: string;
   onToggleDark: () => void;
   onToggleSounds: () => void;
   onSoundVolumeChange: (volume: number) => void;
@@ -34,6 +37,7 @@ export function SettingsWindow({
   onToggleImageTooltips: () => void;
   onColorFormatChange: (format: ColorFormat) => void;
   onDownloadExtension: () => void;
+  onCheckForUpdates: () => void;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLElement>(null);
@@ -144,6 +148,11 @@ export function SettingsWindow({
           <Download size={15} aria-hidden="true" />
           <span>Download extension</span>
           <kbd aria-hidden="true">↗</kbd>
+        </button>
+        <button type="button" onClick={onCheckForUpdates} disabled={updateStatus === "Checking…" || updateStatus === "Downloading…" || updateStatus === "Installing…"}>
+          <RefreshCw className={updateStatus === "Checking…" ? "is-spinning" : undefined} size={15} aria-hidden="true" />
+          <span>Check for updates</span>
+          <kbd>{updateStatus}</kbd>
         </button>
         <p className="settings-version">Koi {appVersion}</p>
       </section>

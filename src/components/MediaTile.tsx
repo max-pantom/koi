@@ -1,7 +1,8 @@
-import { mediaSrc } from "../lib/media";
+import { isGeneratedLinkPlaceholder, mediaSrc } from "../lib/media";
 import { extractColorIndex } from "../lib/colorIndex";
 import type { MediaItem } from "../lib/types";
-import { memo, useRef, type CSSProperties, type MouseEvent } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { SavedPageCard } from "./SavedPageCard";
 
 type MediaTileProps = {
   item: MediaItem;
@@ -27,6 +28,13 @@ export const MediaTile = memo(function MediaTile({
   onIndex,
 }: MediaTileProps) {
   const hasQueuedIndex = useRef(false);
+  const [mediaError, setMediaError] = useState(false);
+  const isLinkPlaceholder = isGeneratedLinkPlaceholder(item);
+
+  useEffect(() => {
+    hasQueuedIndex.current = false;
+    setMediaError(false);
+  }, [item.id]);
 
   return (
     <button
@@ -39,7 +47,9 @@ export const MediaTile = memo(function MediaTile({
       aria-label={`${item.captureType === "link" ? "Saved page: " : ""}${item.sourceTitle || item.name}`}
       title={showImageTooltip ? item.sourceTitle || item.name : undefined}
     >
-      {item.kind === "video" ? (
+      {mediaError || isLinkPlaceholder ? (
+        <SavedPageCard item={item} compact unavailable={mediaError && !isLinkPlaceholder} />
+      ) : item.kind === "video" ? (
         <video
           src={mediaSrc(item)}
           aria-hidden="true"
@@ -55,6 +65,7 @@ export const MediaTile = memo(function MediaTile({
               onMeasure(item.id, video.videoWidth, video.videoHeight);
             }
           }}
+          onError={() => setMediaError(true)}
         />
       ) : <img
         src={mediaSrc(item)}
@@ -62,6 +73,7 @@ export const MediaTile = memo(function MediaTile({
         loading="lazy"
         decoding="async"
         draggable
+        onError={() => setMediaError(true)}
         onDragStart={(event) => {
           event.dataTransfer.setData("text/plain", item.path);
           event.dataTransfer.setData("text/uri-list", `file://${item.path}`);

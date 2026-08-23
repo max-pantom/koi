@@ -7,6 +7,8 @@ mod watcher;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .menu(menu::build)
         .on_menu_event(|app, event| {
             menu::handle(app, event.id().as_ref());

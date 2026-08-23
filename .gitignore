@@ -31,3 +31,6 @@ pnpm-debug.log*
 # Vite cache
 node_modules/.vite/
 node_modules/.vite-temp/
+
+# Local SKLX publishing state
+.skl/skills/*/.skl/

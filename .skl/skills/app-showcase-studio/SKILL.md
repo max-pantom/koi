@@ -25,7 +25,7 @@ Create launch-quality visuals without redesigning or misrepresenting the product
 ## Capture Rules
 
 - Prefer native screenshot utilities or the browser tooling already used by the project.
-- On macOS, use `scripts/capture-macos-window.sh` when a fixed crop is sufficient.
+- On macOS, use `screencapture` with a deterministic window position and crop, or reuse a capture helper already available in the target project.
 - Set a deterministic window position and size before capturing.
 - Capture only project data the user already put in scope.
 - Never replace a real product screenshot with an invented UI mockup.
