@@ -80,7 +80,7 @@ export function MediaContextMenu({
       >
         <button type="button" role="menuitem" onClick={onCopyImage}>
           <Copy size={14} aria-hidden="true" />
-          Copy image
+          {item.kind === "video" ? "Copy video path" : "Copy image"}
         </button>
         {(item.sourceLinkUrl || item.sourcePageUrl || item.sourceCanonicalUrl || item.sourceFinalUrl || item.sourceUrl) && (
           <button type="button" role="menuitem" onClick={onOpenSource}>

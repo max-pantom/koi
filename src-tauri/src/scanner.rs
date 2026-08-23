@@ -1,12 +1,18 @@
-use image::GenericImageView;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap},
+    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
     fs,
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
     time::UNIX_EPOCH,
 };
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColorIndex {
+    pub dominant_colors: Vec<String>,
+    pub color_names: Vec<String>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +50,8 @@ pub struct MediaItem {
     pub source_page_title: Option<String>,
     pub source_site_name: Option<String>,
     pub source_description: Option<String>,
+    pub source_byline: Option<String>,
+    pub source_content_markdown: Option<String>,
     pub captured_at: Option<String>,
 }
 
@@ -56,7 +64,7 @@ pub struct LibraryState {
 
 const MEDIA_EXTENSIONS: &[&str] = &[
     "apng", "avif", "aviff", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif",
-    "tiff", "webp",
+    "tiff", "webp", "m4v", "mov", "mp4", "ogv", "webm",
 ];
 pub const CAPTURE_MANIFEST_FILENAME: &str = "koi-manifest.json";
 
@@ -133,7 +141,14 @@ fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(
             path: absolute,
             name,
             extension: extension.clone(),
-            kind: if extension == "gif" { "gif" } else { "image" }.to_string(),
+            kind: if extension == "gif" {
+                "gif"
+            } else if matches!(extension.as_str(), "m4v" | "mov" | "mp4" | "ogv" | "webm") {
+                "video"
+            } else {
+                "image"
+            }
+            .to_string(),
             width: image_metadata.width,
             height: image_metadata.height,
             created_at: file_metadata.created().ok().and_then(to_secs),
@@ -152,6 +167,8 @@ fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(
             source_page_title: capture_metadata.source_page_title,
             source_site_name: capture_metadata.source_site_name,
             source_description: capture_metadata.source_description,
+            source_byline: capture_metadata.source_byline,
+            source_content_markdown: capture_metadata.source_content_markdown,
             captured_at: capture_metadata.captured_at,
         });
     }
@@ -172,6 +189,8 @@ pub struct CaptureMetadata {
     source_page_title: Option<String>,
     source_site_name: Option<String>,
     source_description: Option<String>,
+    source_byline: Option<String>,
+    source_content_markdown: Option<String>,
     captured_at: Option<String>,
 }
 
@@ -366,44 +385,102 @@ fn media_metadata(path: &Path) -> MediaMetadata {
     let Ok(reader) = image::ImageReader::open(path) else {
         return empty_metadata();
     };
-    let Ok(image) = reader.decode() else {
+    let Ok((width, height)) = reader.into_dimensions() else {
         return empty_metadata();
     };
-    let (width, height) = image.dimensions();
-    let thumbnail = image.thumbnail(48, 48).to_rgb8();
-    let mut buckets: std::collections::HashMap<(u8, u8, u8), usize> =
-        std::collections::HashMap::new();
-
-    for pixel in thumbnail.pixels().step_by(4) {
-        let [r, g, b] = pixel.0;
-        let key = ((r / 32) * 32, (g / 32) * 32, (b / 32) * 32);
-        *buckets.entry(key).or_insert(0) += 1;
-    }
-
-    let mut buckets = buckets.into_iter().collect::<Vec<_>>();
-    buckets.sort_by(|a, b| b.1.cmp(&a.1));
-    let dominant = buckets
-        .into_iter()
-        .take(5)
-        .map(|(rgb, _)| rgb)
-        .collect::<Vec<_>>();
-    let dominant_colors = dominant
-        .iter()
-        .map(|(r, g, b)| format!("#{r:02x}{g:02x}{b:02x}"))
-        .collect::<Vec<_>>();
-    let mut color_names = dominant
-        .iter()
-        .map(|rgb| nearest_color_name(*rgb))
-        .collect::<Vec<_>>();
-    let mut seen_color_names = std::collections::HashSet::new();
-    color_names.retain(|name| seen_color_names.insert(name.clone()));
 
     MediaMetadata {
         width: Some(width),
         height: Some(height),
+        // The desktop UI computes colors only for thumbnails that actually
+        // enter the virtualized viewport, then persists them in SQLite. Folder
+        // scans stay header-only instead of decoding every full-resolution file.
+        dominant_colors: Vec::new(),
+        color_names: Vec::new(),
+    }
+}
+
+pub fn extract_color_index(path: &Path) -> Result<ColorIndex, String> {
+    let image = image::ImageReader::open(path)
+        .map_err(|error| format!("Could not open the image: {error}"))?
+        .with_guessed_format()
+        .map_err(|error| format!("Could not read the image format: {error}"))?
+        .decode()
+        .map_err(|error| format!("Could not decode the image: {error}"))?
+        .resize(48, 48, image::imageops::FilterType::Triangle)
+        .to_rgba8();
+    let mut buckets = HashMap::<(u8, u8, u8), ([u64; 3], u64)>::new();
+    for pixel in image.pixels().step_by(4) {
+        if pixel[3] < 160 {
+            continue;
+        }
+        let key = (quantize(pixel[0]), quantize(pixel[1]), quantize(pixel[2]));
+        let bucket = buckets.entry(key).or_insert(([0, 0, 0], 0));
+        bucket.0[0] += u64::from(pixel[0]);
+        bucket.0[1] += u64::from(pixel[1]);
+        bucket.0[2] += u64::from(pixel[2]);
+        bucket.1 += 1;
+    }
+    let mut buckets = buckets.into_values().collect::<Vec<_>>();
+    buckets.sort_by(|left, right| right.1.cmp(&left.1));
+    let colors = buckets
+        .into_iter()
+        .take(5)
+        .map(|(sum, count)| {
+            [
+                (sum[0] / count) as u8,
+                (sum[1] / count) as u8,
+                (sum[2] / count) as u8,
+            ]
+        })
+        .collect::<Vec<_>>();
+    if colors.is_empty() {
+        return Err("This image has no visible colors to sample.".into());
+    }
+    let dominant_colors = colors
+        .iter()
+        .map(|rgb| format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]))
+        .collect();
+    let mut color_names = Vec::new();
+    for rgb in colors {
+        let name = nearest_color_name(rgb).to_string();
+        if !color_names.contains(&name) {
+            color_names.push(name);
+        }
+    }
+    Ok(ColorIndex {
         dominant_colors,
         color_names,
-    }
+    })
+}
+
+fn quantize(value: u8) -> u8 {
+    ((u16::from(value) + 16) / 32 * 32).min(255) as u8
+}
+
+fn nearest_color_name(rgb: [u8; 3]) -> &'static str {
+    const COLORS: &[(&str, [i32; 3])] = &[
+        ("black", [18, 18, 18]),
+        ("white", [242, 242, 238]),
+        ("gray", [128, 128, 128]),
+        ("red", [216, 48, 42]),
+        ("orange", [235, 127, 38]),
+        ("yellow", [232, 205, 48]),
+        ("green", [48, 155, 74]),
+        ("blue", [50, 100, 210]),
+        ("purple", [125, 75, 180]),
+        ("pink", [226, 94, 154]),
+        ("brown", [126, 82, 48]),
+    ];
+    COLORS
+        .iter()
+        .min_by_key(|(_, candidate)| {
+            (i32::from(rgb[0]) - candidate[0]).pow(2)
+                + (i32::from(rgb[1]) - candidate[1]).pow(2)
+                + (i32::from(rgb[2]) - candidate[2]).pow(2)
+        })
+        .map(|(name, _)| *name)
+        .unwrap_or("gray")
 }
 
 fn empty_metadata() -> MediaMetadata {
@@ -415,35 +492,11 @@ fn empty_metadata() -> MediaMetadata {
     }
 }
 
-fn nearest_color_name(rgb: (u8, u8, u8)) -> String {
-    const COLORS: &[(&str, (i32, i32, i32))] = &[
-        ("black", (18, 18, 18)),
-        ("white", (242, 242, 238)),
-        ("gray", (128, 128, 128)),
-        ("red", (216, 48, 42)),
-        ("orange", (235, 127, 38)),
-        ("yellow", (232, 205, 48)),
-        ("green", (48, 155, 74)),
-        ("blue", (50, 100, 210)),
-        ("purple", (125, 75, 180)),
-        ("pink", (226, 94, 154)),
-        ("brown", (126, 82, 48)),
-    ];
-
-    let rgb = (rgb.0 as i32, rgb.1 as i32, rgb.2 as i32);
-    COLORS
-        .iter()
-        .min_by_key(|(_, color)| {
-            (rgb.0 - color.0).pow(2) + (rgb.1 - color.1).pow(2) + (rgb.2 - color.2).pow(2)
-        })
-        .map(|(name, _)| name.to_string())
-        .unwrap_or_else(|| "gray".to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        capture_metadata, migrate_legacy_sidecars, read_capture_manifest, CAPTURE_MANIFEST_FILENAME,
+        capture_metadata, extract_color_index, migrate_legacy_sidecars, read_capture_manifest,
+        CAPTURE_MANIFEST_FILENAME,
     };
     use std::{fs, time::SystemTime};
 
@@ -501,5 +554,20 @@ mod tests {
         assert!(!directory.join("reference.koi.json").exists());
 
         fs::remove_dir_all(directory).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn extracts_a_palette_from_a_local_image() {
+        let unique = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("time should move forward")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("koi-colors-{unique}.png"));
+        let image = image::RgbaImage::from_pixel(12, 12, image::Rgba([32, 96, 208, 255]));
+        image.save(&path).expect("test image should save");
+        let index = extract_color_index(&path).expect("palette should be extracted");
+        assert_eq!(index.dominant_colors.len(), 1);
+        assert_eq!(index.color_names, vec!["blue"]);
+        let _ = fs::remove_file(path);
     }
 }

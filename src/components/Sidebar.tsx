@@ -137,7 +137,7 @@ export function Sidebar({
             <span className="sidebar-row-count">{total.toLocaleString()}</span>
           </button>
 
-          <div className={`sidebar-search-field${isSearchOpen || query ? " is-active" : ""}`} role="search">
+          <div className="sidebar-search-field" role="search">
             <label className="sr-only" htmlFor={searchInputId}>Search library</label>
             <Search size={14} strokeWidth={1.7} aria-hidden="true" />
             <input
@@ -169,7 +169,13 @@ export function Sidebar({
               <kbd aria-hidden="true">⌘F</kbd>
             )}
           </div>
-          {query && <output className="sidebar-search-count" aria-live="polite">{resultCount.toLocaleString()} found</output>}
+          {(query || isSearchOpen) && (
+            <div className="sidebar-search-meta">
+              <output className="sidebar-search-count" aria-live="polite">
+                {query ? `${resultCount.toLocaleString()} found` : "Search names, tags, and sources"}
+              </output>
+            </div>
+          )}
         </nav>
 
         <section className="sidebar-section" aria-labelledby="folders-heading">

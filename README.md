@@ -1,8 +1,18 @@
 # Koi
 
-Koi is a fast, local-first moodboard for image folders. It keeps your references on your computer, supports still images and GIFs, and adds search, tags, color palettes, saved-page provenance, and keyboard navigation without requiring an account or cloud sync.
+Koi is a fast, local-first moodboard for image folders. It keeps your references on your computer, supports images, GIFs, videos, saved pages, and readable articles, and adds search, tags, color palettes, source provenance, and keyboard navigation without requiring an account or cloud sync.
 
-The optional Koi Capture browser extension saves images, GIFs, pages, and articles from Chrome into Koi with their original source information.
+The optional Koi Capture browser extension saves images, GIFs, videos, pages, and articles from Chrome into Koi with their original source information. Supported social post links resolve to their actual downloadable media instead of becoming generic saved pages.
+
+## Preview
+
+### Real Koi 0.2.0 build
+
+![Koi's dark local moodboard grid showing a varied visual reference library](docs/images/koi-library.png)
+
+### Studio presentation
+
+![Koi displayed on a desktop monitor in a quiet contemporary design studio](docs/images/koi-studio.jpg)
 
 ## Install Koi
 
@@ -45,6 +55,7 @@ The extension and desktop app work together locally. The extension downloads the
 - Select the Koi Capture toolbar button to browse large images on the current page or save the page/article preview.
 - Right-click an image, link, or page and choose **Save to Koi → Quick save** to use your default folder.
 - Choose **Save to Koi → Choose folder…** to select a destination before saving.
+- Saving a supported X/Twitter, Instagram, TikTok, Facebook, Threads, Bluesky, or Pinterest post link downloads the post's images or videos as normal media.
 - Koi preserves GIF files when the website exposes the original GIF URL.
 
 Some browser-internal pages, protected media, canvases, `blob:` URLs, and DRM content cannot be downloaded by an extension.
@@ -54,7 +65,7 @@ Some browser-internal pages, protected media, canvases, `blob:` URLs, and DRM co
 - Local folders as independent moodboards
 - JPEG, PNG, GIF, WebP, AVIF, SVG, TIFF, BMP, HEIC, and HEIF references
 - Packed and aligned virtualized grids for large libraries
-- Tags and smart search across filenames, folders, colors, and source metadata
+- Search across filenames, folders, tags, colors, and source metadata
 - Extracted color swatches with copyable hex values
 - Saved pages and articles with a clear **Saved page** label and source link
 - One `koi-manifest.json` per managed folder for capture metadata
@@ -78,7 +89,7 @@ npm run tauri -- build
 
 Version numbers live in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`. The installed version is also shown at the bottom of Koi’s Settings window.
 
-Creating a tag such as `v0.1.10` runs the release workflow and prepares a draft GitHub release containing the desktop installers and the packaged Chrome extension.
+Creating a tag such as `v0.2.0` runs the release workflow and prepares a draft GitHub release containing the desktop installers and the packaged Chrome extension.
 
 ## Project structure
 

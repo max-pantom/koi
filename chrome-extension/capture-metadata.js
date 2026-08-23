@@ -21,6 +21,8 @@ export function buildCaptureMetadata({
     sourcePageTitle: page.title || "",
     sourceSiteName: page.siteName || hostname(page.pageUrl),
     sourceDescription: page.description || "",
+    sourceByline: page.byline || "",
+    sourceContentMarkdown: page.articleMarkdown || "",
     capturedAt,
     imageFilename,
     destinationFolderId: destinationFolderId || "",

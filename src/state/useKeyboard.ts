@@ -27,6 +27,7 @@ type KeyboardActions = {
   smallerThumbnails: () => void;
   resetThumbnails: () => void;
   openInbox: () => void;
+  pasteClipboard: () => void;
 };
 
 export function useKeyboard(actions: KeyboardActions) {
@@ -59,6 +60,8 @@ export function useKeyboard(actions: KeyboardActions) {
       if (event.metaKey && key === "c") return run(event, actions.copyImage);
 
       if (isTyping && key !== "escape") return;
+
+      if ((event.metaKey || event.ctrlKey) && key === "v") return run(event, actions.pasteClipboard);
 
       if (key === "escape") return run(event, actions.closeLayer);
       if (key === "backspace" || key === "delete") return run(event, actions.removeSelected);

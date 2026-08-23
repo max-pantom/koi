@@ -5,6 +5,13 @@ use crate::{
 use std::{fs, io::Cursor, path::PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipboardImport {
+    kind: String,
+    label: String,
+}
+
 #[tauri::command]
 pub fn ensure_capture_folder(app: AppHandle) -> Result<Folder, String> {
     let folder_path = app
@@ -93,6 +100,18 @@ pub fn save_media_index(
 }
 
 #[tauri::command]
+pub fn extract_media_colors(
+    app: AppHandle,
+    media_id: String,
+) -> Result<scanner::ColorIndex, String> {
+    let item = db::media_by_id(&app, &media_id)?
+        .ok_or_else(|| "That image is no longer in Koi.".to_string())?;
+    let index = scanner::extract_color_index(&PathBuf::from(item.path))?;
+    db::save_media_index(&app, &media_id, &index.dominant_colors, &index.color_names)?;
+    Ok(index)
+}
+
+#[tauri::command]
 pub fn reconnect_folder(app: AppHandle, folder_id: String) -> Result<(), String> {
     let folder_path = rfd::FileDialog::new()
         .set_title("Locate moved folder")
@@ -170,6 +189,86 @@ pub fn copy_media_image(app: AppHandle, media_id: String) -> Result<(), String> 
         .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
         .map_err(|error| format!("Could not prepare the image for copying: {error}"))?;
     write_png_to_clipboard(&png)
+}
+
+#[tauri::command]
+pub fn import_clipboard(app: AppHandle) -> Result<ClipboardImport, String> {
+    let mut clipboard = arboard::Clipboard::new()
+        .map_err(|error| format!("Could not read the clipboard: {error}"))?;
+    let folder = ensure_capture_folder(app.clone())?;
+    let folder_path = PathBuf::from(&folder.path);
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+
+    let (filename, metadata, kind, label) = if let Ok(image) = clipboard.get_image() {
+        let filename = format!("clipboard-{stamp}.png");
+        let path = folder_path.join(&filename);
+        image::save_buffer_with_format(
+            &path,
+            image.bytes.as_ref(),
+            image.width as u32,
+            image.height as u32,
+            image::ColorType::Rgba8,
+            image::ImageFormat::Png,
+        )
+        .map_err(|error| format!("Could not save the clipboard image: {error}"))?;
+        (
+            filename.clone(),
+            serde_json::json!({
+                "schemaVersion": 2,
+                "captureType": "image",
+                "sourceTitle": "Clipboard image",
+                "imageFilename": filename,
+            }),
+            "image".to_string(),
+            "Clipboard image saved".to_string(),
+        )
+    } else {
+        let value = clipboard
+            .get_text()
+            .map_err(|_| "Copy an image or website link, then press Paste again.".to_string())?;
+        let url = value.trim();
+        if !url.starts_with("https://") && !url.starts_with("http://") {
+            return Err("Copy an image or website link, then press Paste again.".into());
+        }
+        let host = url
+            .split_once("://")
+            .map(|(_, rest)| rest.split('/').next().unwrap_or(rest))
+            .unwrap_or(url)
+            .trim_start_matches("www.");
+        let filename = format!("clipboard-link-{stamp}.png");
+        let path = folder_path.join(&filename);
+        let placeholder = image::RgbaImage::from_fn(1200, 675, |x, y| {
+            let light = 240_u8.saturating_sub(((x + y) % 24) as u8);
+            image::Rgba([light, light, light.saturating_sub(3), 255])
+        });
+        placeholder
+            .save_with_format(&path, image::ImageFormat::Png)
+            .map_err(|error| format!("Could not save the clipboard link: {error}"))?;
+        (
+            filename.clone(),
+            serde_json::json!({
+                "schemaVersion": 2,
+                "captureType": "link",
+                "sourceUrl": url,
+                "sourceFinalUrl": url,
+                "sourcePageUrl": url,
+                "sourceTitle": host,
+                "sourceSiteName": host,
+                "imageFilename": filename,
+            }),
+            "link".to_string(),
+            format!("{host} saved"),
+        )
+    };
+
+    scanner::upsert_capture_metadata(&folder_path, &filename, metadata)?;
+    let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
+    db::sync_folder_media(&app, &folder.id, &items)?;
+    let _ = app.emit("library-changed", ());
+    Ok(ClipboardImport { kind, label })
 }
 
 #[cfg(target_os = "macos")]

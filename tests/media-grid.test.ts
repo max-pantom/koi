@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLayout, findVisiblePositions } from "../src/components/MediaGrid";
+import { buildLayout, findVisiblePositions, thumbnailFlipKeyframes } from "../src/components/MediaGrid";
 import type { MediaItem } from "../src/lib/types";
 
 function item(index: number): MediaItem {
@@ -35,4 +35,17 @@ describe("virtual masonry layout", () => {
     expect(visible.map((position) => position.item.id)).toEqual(expected.map((position) => position.item.id));
     expect(visible.length).toBeLessThan(500);
   });
+});
+
+it("animates thumbnail resizing with inverse transforms instead of width and height keyframes", () => {
+  const media = item(0);
+  const keyframes = thumbnailFlipKeyframes(
+    { item: media, index: 0, x: 10, y: 20, width: 200, height: 150 },
+    { item: media, index: 0, x: 30, y: 40, width: 100, height: 75 },
+  );
+
+  expect(keyframes).toEqual([
+    { transform: "translate3d(10px, 20px, 0) scale(2, 2)" },
+    { transform: "translate3d(30px, 40px, 0) scale(1, 1)" },
+  ]);
 });

@@ -6,11 +6,17 @@ const siteName = document.querySelector("#site-name");
 const savePageButton = document.querySelector("#save-page");
 const imagesTab = document.querySelector("#images-tab");
 const pageTab = document.querySelector("#page-tab");
+const videosTab = document.querySelector("#videos-tab");
 const imagesPanel = document.querySelector("#images-panel");
 const pagePanel = document.querySelector("#page-panel");
+const videosPanel = document.querySelector("#videos-panel");
 const imageGrid = document.querySelector("#image-grid");
 const imageCount = document.querySelector("#image-count");
 const emptyImages = document.querySelector("#empty-images");
+const saveCarouselButton = document.querySelector("#save-carousel");
+const videoGrid = document.querySelector("#video-grid");
+const videoCount = document.querySelector("#video-count");
+const emptyVideos = document.querySelector("#empty-videos");
 const captureUnavailable = document.querySelector("#capture-unavailable");
 const retryCaptureButton = document.querySelector("#retry-capture");
 const status = document.querySelector("#status");
@@ -53,12 +59,14 @@ async function loadActivePage() {
     imageGrid.hidden = false;
     imageCount.hidden = false;
     pageTab.disabled = false;
+    videosTab.disabled = false;
     setStatus("");
   } catch (error) {
     captureUnavailable.hidden = false;
     imageGrid.hidden = true;
     imageCount.hidden = true;
     pageTab.disabled = true;
+    videosTab.disabled = true;
     setStatus(readableCaptureError(error), true);
   }
 }
@@ -71,7 +79,7 @@ async function readPageFromTab(tabId) {
     if (!/receiving end does not exist|could not establish connection/i.test(message)) throw error;
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ["image-candidates.js", "content-script.js"],
+      files: ["image-candidates.js", "video-candidates.js", "article-content.js", "social-platforms.js", "x-capture-controls.js", "content-script.js"],
     });
     return chrome.tabs.sendMessage(tabId, { type: "KOI_GET_PAGE" });
   }
@@ -93,14 +101,20 @@ function renderPendingCapture(capture) {
   showTab("page");
   pageTitle.textContent = capture.type === "KOI_CAPTURE_IMAGE"
     ? capture.imageTitle || "Selected image"
-    : capture.page?.title || "Selected page";
+    : capture.type === "KOI_CAPTURE_VIDEO"
+      ? capture.videoTitle || "Selected video"
+      : capture.page?.title || "Selected page";
   siteName.textContent = capture.page?.siteName || hostname(capture.page?.pageUrl);
   if (capture.type === "KOI_CAPTURE_IMAGE" && capture.imageUrl) {
     pagePreview.src = capture.imageUrl;
     pagePreview.hidden = false;
   }
   savePageButton.disabled = false;
-  savePageButton.textContent = capture.type === "KOI_CAPTURE_IMAGE" ? "Save selected image" : "Save page or article";
+  savePageButton.textContent = capture.type === "KOI_CAPTURE_IMAGE"
+    ? "Save selected image"
+    : capture.type === "KOI_CAPTURE_VIDEO"
+      ? "Save selected video"
+      : "Save page or article";
 }
 
 async function initialiseDestinations() {
@@ -163,10 +177,10 @@ function selectedDestinationFolderId() {
 }
 
 function renderPage(metadata) {
-  pageTitle.textContent = metadata.title || "Untitled page";
+  pageTitle.textContent = metadata.articleTitle || metadata.title || "Untitled page";
   siteName.textContent = metadata.siteName || hostname(metadata.pageUrl);
-  const previewUrl = metadata.ogImage || metadata.images?.[0]?.url;
-  savePageButton.disabled = !previewUrl;
+  const previewUrl = metadata.articleImage || metadata.ogImage || metadata.images?.[0]?.url;
+  savePageButton.disabled = false;
 
   if (previewUrl) {
     pagePreview.src = previewUrl;
@@ -177,32 +191,42 @@ function renderPage(metadata) {
   imageCount.textContent = `${images.length}`;
   emptyImages.hidden = images.length > 0;
   imageGrid.replaceChildren(...images.map(imageButton));
+  const videos = (metadata.videos || []).slice(0, 12);
+  videoCount.textContent = `${videos.length}`;
+  emptyVideos.hidden = videos.length > 0;
+  videoGrid.replaceChildren(...videos.map(videoButton));
+  saveCarouselButton.hidden = hostname(metadata.pageUrl) !== "instagram.com" || images.length + videos.length < 2;
+  if (hostname(metadata.pageUrl) === "instagram.com") savePageButton.textContent = "Save Instagram post";
 }
 
 imagesTab.addEventListener("click", () => showTab("images"));
 pageTab.addEventListener("click", () => showTab("page"));
+videosTab.addEventListener("click", () => showTab("videos"));
 
-for (const tab of [imagesTab, pageTab]) {
+const tabs = [imagesTab, pageTab, videosTab];
+for (const tab of tabs) {
   tab.addEventListener("keydown", (event) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
-    const next = tab === imagesTab ? pageTab : imagesTab;
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    const next = tabs[(tabs.indexOf(tab) + direction + tabs.length) % tabs.length];
     if (next.disabled) return;
-    showTab(next === imagesTab ? "images" : "page");
+    showTab(next === imagesTab ? "images" : next === pageTab ? "page" : "videos");
     next.focus();
   });
 }
 
 function showTab(name) {
-  const showImages = name === "images";
-  imagesTab.classList.toggle("is-active", showImages);
-  imagesTab.setAttribute("aria-selected", String(showImages));
-  imagesTab.tabIndex = showImages ? 0 : -1;
-  pageTab.classList.toggle("is-active", !showImages);
-  pageTab.setAttribute("aria-selected", String(!showImages));
-  pageTab.tabIndex = showImages ? -1 : 0;
-  imagesPanel.hidden = !showImages;
-  pagePanel.hidden = showImages;
+  const selectedTab = name === "images" ? imagesTab : name === "page" ? pageTab : videosTab;
+  for (const tab of tabs) {
+    const isSelected = tab === selectedTab;
+    tab.classList.toggle("is-active", isSelected);
+    tab.setAttribute("aria-selected", String(isSelected));
+    tab.tabIndex = isSelected ? 0 : -1;
+  }
+  imagesPanel.hidden = name !== "images";
+  pagePanel.hidden = name !== "page";
+  videosPanel.hidden = name !== "videos";
 }
 
 function imageButton(image, index) {
@@ -220,7 +244,82 @@ function imageButton(image, index) {
   return button;
 }
 
+function videoButton(video, index) {
+  const button = document.createElement("button");
+  button.className = "video-button";
+  button.type = "button";
+  button.setAttribute("aria-label", `Save ${video.title || `video ${index + 1}`} to Koi`);
+  if (video.poster) {
+    const preview = document.createElement("img");
+    preview.src = video.poster;
+    preview.alt = "";
+    preview.loading = "lazy";
+    button.append(preview);
+  } else {
+    const placeholder = document.createElement("span");
+    placeholder.className = "video-button-placeholder";
+    placeholder.setAttribute("aria-hidden", "true");
+    button.append(placeholder);
+  }
+  const label = document.createElement("span");
+  label.textContent = video.title || `Video ${index + 1}`;
+  const action = document.createElement("strong");
+  action.textContent = "Save";
+  button.append(label, action);
+  button.addEventListener("click", () => runCapture(button, {
+    type: "KOI_CAPTURE_VIDEO",
+    videoUrl: video.url,
+    videoTitle: video.title || page.title,
+    isGif: video.isGif,
+    page,
+    destinationFolderId: selectedDestinationFolderId(),
+  }));
+  return button;
+}
+
+saveCarouselButton.addEventListener("click", () => void saveSocialPost(saveCarouselButton));
+
+async function saveSocialPost(button) {
+  const captures = [
+    ...page.images.slice(0, 12).map((image) => ({
+      type: "KOI_CAPTURE_IMAGE",
+      imageUrl: image.url,
+      imageTitle: image.alt || image.title || page.title,
+      sourceLinkUrl: image.linkUrl || "",
+      page,
+      destinationFolderId: selectedDestinationFolderId(),
+    })),
+    ...(page.videos || []).slice(0, 8).map((video) => ({
+      type: "KOI_CAPTURE_VIDEO",
+      videoUrl: video.url,
+      videoTitle: video.title || page.title,
+      isGif: video.isGif,
+      page,
+      destinationFolderId: selectedDestinationFolderId(),
+    })),
+  ];
+  button.disabled = true;
+  let saved = 0;
+  for (const capture of captures) {
+    setStatus(`Saving ${saved + 1} of ${captures.length}…`);
+    const result = await chrome.runtime.sendMessage(capture).catch((error) => ({ ok: false, error: String(error) }));
+    if (!result?.ok) {
+      setStatus(`Saved ${saved} of ${captures.length}. ${result?.error || "The next item could not be saved."}`, true);
+      button.disabled = false;
+      return false;
+    }
+    saved += 1;
+  }
+  setStatus(`${saved} Instagram items saved.`);
+  button.disabled = false;
+  return true;
+}
+
 savePageButton.addEventListener("click", async () => {
+  if (!pendingContextCapture && hostname(page?.pageUrl) === "instagram.com") {
+    await saveSocialPost(savePageButton);
+    return;
+  }
   const message = pendingContextCapture ? {
     ...pendingContextCapture,
     destinationFolderId: selectedDestinationFolderId(),
@@ -259,7 +358,7 @@ async function runCapture(button, message) {
     if (!result?.ok) throw new Error(result?.error || "Unable to save this capture.");
     setStatus(result.usedFallback
       ? `Saved to ${result.destinationFolderName}. Koi retried a blocked download.`
-      : `Saved image and source info to ${result.destinationFolderName}.`);
+      : `Saved to ${result.destinationFolderName} with its source info.`);
     return true;
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);

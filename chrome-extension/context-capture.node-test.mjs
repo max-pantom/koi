@@ -32,6 +32,18 @@ test("builds a linked-page capture with the clicked destination intact", () => {
   assert.equal(capture.page.siteName, "notes.example.net");
 });
 
+test("builds a video capture with the direct media URL", () => {
+  const capture = buildContextCapture({
+    menuItemId: "koi-quick-save-video",
+    srcUrl: "https://video.example/demo.mp4",
+    pageUrl: "https://example.com/watch",
+  }, { id: 18, title: "Demo reel" });
+
+  assert.equal(capture.type, "KOI_CAPTURE_VIDEO");
+  assert.equal(capture.videoUrl, "https://video.example/demo.mp4");
+  assert.equal(capture.promptForDestination, false);
+});
+
 test("ignores unrelated context-menu events", () => {
   assert.equal(buildContextCapture({ menuItemId: "something-else" }, {}), undefined);
 });
@@ -53,4 +65,24 @@ test("save-to context actions always ask for a destination", () => {
   }, { id: 14, title: "Furniture gallery" });
 
   assert.equal(capture.promptForDestination, true);
+});
+
+test("unified context actions choose the clicked media type without duplicate menu entries", () => {
+  const image = buildContextCapture({
+    menuItemId: "koi-quick-save",
+    mediaType: "image",
+    srcUrl: "https://cdn.example.com/post.jpg",
+    pageUrl: "https://x.com/koi/status/123",
+  }, { id: 22, title: "Post" });
+  const link = buildContextCapture({
+    menuItemId: "koi-save-to",
+    pageUrl: "https://x.com/home",
+    linkUrl: "https://x.com/koi/status/123",
+  }, { id: 22, title: "Post" });
+
+  assert.equal(image.type, "KOI_CAPTURE_IMAGE");
+  assert.equal(image.promptForDestination, false);
+  assert.equal(link.type, "KOI_CAPTURE_PAGE");
+  assert.equal(link.page.pageUrl, "https://x.com/koi/status/123");
+  assert.equal(link.promptForDestination, true);
 });

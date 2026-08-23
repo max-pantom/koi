@@ -58,7 +58,9 @@ export async function downloadImageWithFallback({
     if (!response.ok) throw new Error(`website returned ${response.status}`);
 
     const contentType = response.headers.get("content-type")?.split(";")[0].trim() || "image/jpeg";
-    if (!contentType.startsWith("image/")) throw new Error(`website returned ${contentType}`);
+    if (!contentType.startsWith("image/") && !contentType.startsWith("video/")) {
+      throw new Error(`website returned ${contentType}`);
+    }
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (!bytes.byteLength) throw new Error("website returned an empty file");
     if (bytes.byteLength > MAX_INLINE_FALLBACK_BYTES) {

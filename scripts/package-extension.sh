@@ -14,8 +14,11 @@ trap cleanup EXIT
 
 mkdir -p "${archive_root}" "${repository_root}/releases"
 cp -R \
+  "${repository_root}/chrome-extension/article-content.js" \
+  "${repository_root}/chrome-extension/article-html.js" \
   "${repository_root}/chrome-extension/brand-mark.svg" \
   "${repository_root}/chrome-extension/capture-metadata.js" \
+  "${repository_root}/chrome-extension/capture-kind.js" \
   "${repository_root}/chrome-extension/content-script.js" \
   "${repository_root}/chrome-extension/context-capture.js" \
   "${repository_root}/chrome-extension/downloads.js" \
@@ -28,6 +31,9 @@ cp -R \
   "${repository_root}/chrome-extension/popup.html" \
   "${repository_root}/chrome-extension/popup.js" \
   "${repository_root}/chrome-extension/service-worker.js" \
+  "${repository_root}/chrome-extension/social-platforms.js" \
+  "${repository_root}/chrome-extension/video-candidates.js" \
+  "${repository_root}/chrome-extension/x-capture-controls.js" \
   "${archive_root}/"
 
 (

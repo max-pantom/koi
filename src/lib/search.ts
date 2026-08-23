@@ -125,7 +125,7 @@ function getFields(item: MediaItem, mode: SearchMode, folderNames: Map<string, s
     createField("name", item.name, 10),
     createField("tag", item.tags.join(" "), 9),
     createField("folder", folderName, 6),
-    createField("site", [item.sourceTitle, item.sourcePageTitle, item.sourceSiteName, item.sourceDescription, hostname(item.sourceLinkUrl), hostname(item.sourcePageUrl), hostname(item.sourceCanonicalUrl), hostname(item.sourceFinalUrl), hostname(item.sourceUrl)].filter(Boolean).join(" "), 7),
+    createField("site", [item.sourceTitle, item.sourcePageTitle, item.sourceSiteName, item.sourceByline, item.sourceDescription, item.sourceContentMarkdown, hostname(item.sourceLinkUrl), hostname(item.sourcePageUrl), hostname(item.sourceCanonicalUrl), hostname(item.sourceFinalUrl), hostname(item.sourceUrl)].filter(Boolean).join(" "), 7),
     createField("type", [item.kind, item.captureType, item.extension].filter(Boolean).join(" "), 5),
   ];
 

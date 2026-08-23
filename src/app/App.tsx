@@ -11,8 +11,9 @@ import { MediaGrid } from "../components/MediaGrid";
 import { SettingsWindow } from "../components/SettingsWindow";
 import { TagEditor } from "../components/TagEditor";
 import { Sidebar } from "../components/Sidebar";
-import { ToastRegion, type ToastMessage, type ToastTone } from "../components/ToastRegion";
+import { Toaster, toast } from "sonner";
 import { mediaSrc } from "../lib/media";
+import { formatColor, type ColorFormat } from "../lib/colors";
 import { areSoundsEnabled, getSoundVolume, playSound, setSoundVolume, setSoundsEnabled } from "../lib/sound";
 import type { MediaItem } from "../lib/types";
 import { initialRoute } from "./routes";
@@ -20,7 +21,7 @@ import { useKeyboard } from "../state/useKeyboard";
 import { useLibraryStore } from "../state/useLibraryStore";
 import "../styles/app.css";
 
-const EXTENSION_DOWNLOAD_URL = "https://github.com/max-pantom/koi/releases/latest/download/Koi-Capture-0.2.5.zip";
+const EXTENSION_DOWNLOAD_URL = "https://github.com/max-pantom/koi/releases/latest/download/Koi-Capture-0.3.0.zip";
 
 export function App() {
   const store = useLibraryStore();
@@ -36,14 +37,22 @@ export function App() {
   const [showImageTooltips, setShowImageTooltips] = useState(
     () => localStorage.getItem("koi.image-name-tooltips") !== "hidden",
   );
+  const [colorFormat, setColorFormat] = useState<ColorFormat>(() => {
+    const stored = localStorage.getItem("koi.color-format");
+    return stored === "rgb" || stored === "hsl" ? stored : "hex";
+  });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: MediaItem } | undefined>();
   const [previewMode, setPreviewMode] = useState<"none" | "quick" | "focus">("none");
   const [isPreviewClosing, setIsPreviewClosing] = useState(false);
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [route, setRoute] = useState(initialRoute);
   const searchRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const menuEventHandlerRef = useRef<(id: string) => void>(() => undefined);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("koi-dark", isDark);
+    return () => document.documentElement.classList.remove("koi-dark");
+  }, [isDark]);
 
   const isFocusOpen = previewMode !== "none" && !!store.selectedItem;
   const activeFolder =
@@ -109,12 +118,8 @@ export function App() {
   }, [store.error]);
 
   useEffect(() => {
-    setToasts((current) => {
-      const withoutProgress = current.filter((toast) => toast.id !== "library-progress");
-      return store.isLoading
-        ? [...withoutProgress, { id: "library-progress", message: "Scanning library…", tone: "progress" }]
-        : withoutProgress;
-    });
+    if (store.isLoading) toast.loading("Scanning library…", { id: "library-progress", duration: Infinity });
+    else toast.dismiss("library-progress");
   }, [store.isLoading]);
 
   const previousItemIds = useRef<Set<string>>();
@@ -182,6 +187,13 @@ export function App() {
     playSound("copy");
   };
 
+  const copyHex = (hex: string) => {
+    const value = formatColor(hex, colorFormat);
+    void navigator.clipboard.writeText(value);
+    showToast(`${value} copied`, "success");
+    playSound("copy");
+  };
+
   const openSource = (item = store.selectedItem) => {
     const url = item?.sourceLinkUrl || item?.sourcePageUrl || item?.sourceCanonicalUrl || item?.sourceFinalUrl || item?.sourceUrl;
     if (!url || !/^https?:\/\//i.test(url)) return;
@@ -190,6 +202,12 @@ export function App() {
 
   const copyImage = async (item = store.selectedItem) => {
     if (!item) return;
+    if (item.kind === "video") {
+      await navigator.clipboard.writeText(item.path);
+      showToast("Video path copied", "success");
+      playSound("copy");
+      return;
+    }
 
     try {
       await invoke("copy_media_image", { mediaId: item.id });
@@ -197,6 +215,16 @@ export function App() {
       playSound("copy");
     } catch (error) {
       showToast(`Couldn’t copy image · ${String(error)}`, "error", 5200);
+    }
+  };
+
+  const pasteClipboard = async () => {
+    try {
+      const result = await invoke<{ kind: "image" | "link"; label: string }>("import_clipboard");
+      showToast(result.label, "added");
+      playSound("folder_added");
+    } catch (error) {
+      showToast(String(error), "error");
     }
   };
 
@@ -232,6 +260,9 @@ export function App() {
 
   const openPalette = () => {
     if (!store.selectedItem) return;
+    if (!store.selectedItem.dominantColors.length && store.selectedItem.kind !== "video") {
+      void store.extractMediaIndex(store.selectedItem.id);
+    }
     if (previewMode === "none") setPreviewMode("quick");
     setIsPaletteOpen(true);
     setContextMenu(undefined);
@@ -262,10 +293,12 @@ export function App() {
   const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
 
   const showToast = (message: string, tone: ToastTone, duration = 2600) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setToasts((current) => [...current.filter((toast) => toast.tone !== "progress"), { id, message, tone }].slice(-3));
-    if (duration > 0) window.setTimeout(() => setToasts((current) => current.filter((toast) => toast.id !== id)), duration);
-    return id;
+    const options = { duration: tone === "error" ? Infinity : duration, closeButton: tone === "error" };
+    if (tone === "error") return toast.error(message, options);
+    if (tone === "progress") return toast.loading(message, { id: "library-progress", duration: Infinity });
+    if (tone === "success" || tone === "added") return toast.success(message, options);
+    if (tone === "delete") return toast(message, options);
+    return toast(message, options);
   };
 
   const runLibraryAction = async (action: () => Promise<boolean>, success: string, tone: ToastTone = "success") => {
@@ -289,7 +322,7 @@ export function App() {
   const startWindowDrag = (event: PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement;
-    if (target.closest("button, input, select, textarea, a, [role='slider'], .tile, .preview-layer, .modal-layer, .settings-layer")) return;
+    if (target.closest("button, input, select, textarea, a, [role='slider'], .tile, .grid-wrap, .article-reader-wrap, .preview-layer, .modal-layer, .settings-layer")) return;
     void getCurrentWindow().startDragging();
   };
 
@@ -300,11 +333,12 @@ export function App() {
       setIsSearchOpen(true);
       playSound("search_open");
     } },
+    { id: "paste", label: "Save from clipboard", shortcut: "⌘V", keywords: "paste image link", run: () => void pasteClipboard() },
     { id: "toggle-sidebar", label: isSidebarOpen ? "Hide sidebar" : "Show sidebar", shortcut: "⌃⌘S", keywords: "panel", run: toggleSidebar },
     { id: "rescan", label: "Rescan folders", shortcut: "⌘R", keywords: "refresh reload", run: () => void runLibraryAction(store.rescan, "Library is up to date") },
     ...(store.inboxFolderId ? [{ id: "open-inbox", label: "Open capture inbox", shortcut: "⇧⌘I", keywords: "extension saves", run: () => store.setActiveFolderId(store.inboxFolderId) }] : []),
     ...(store.selectedItem ? [
-      { id: "copy-image", label: "Copy image", shortcut: "⌘C", keywords: "clipboard", run: () => void copyImage() },
+      { id: "copy-image", label: store.selectedItem.kind === "video" ? "Copy video path" : "Copy image", shortcut: "⌘C", keywords: "clipboard", run: () => void copyImage() },
       { id: "reveal", label: "Reveal image in Finder", shortcut: "⇧⌘R", keywords: "file locate", run: revealSelected },
       { id: "palette", label: "Show color palette", shortcut: "P", keywords: "colors", run: openPalette },
       { id: "edit-tags", label: "Edit image tags", shortcut: "T", keywords: "metadata labels", run: editTags },
@@ -392,6 +426,7 @@ export function App() {
       if (store.inboxFolderId) store.setActiveFolderId(store.inboxFolderId);
       else setIsCommandOpen(true);
     },
+    pasteClipboard: () => void pasteClipboard(),
   });
 
   menuEventHandlerRef.current = (id) => {
@@ -505,17 +540,29 @@ export function App() {
             });
           }}
           onMeasureBatch={store.updateItemSizes}
+          onIndex={(mediaId, dominantColors, colorNames) => {
+            if (dominantColors.length) void store.saveMediaIndex(mediaId, dominantColors, colorNames);
+            else void store.extractMediaIndex(mediaId);
+          }}
           gridColumns={store.gridColumns}
           gridLayout={store.gridLayout}
           showImageTooltips={showImageTooltips}
           onScrollChange={(scrollTop) => localStorage.setItem("koi.scrollTop", String(scrollTop))}
-          onStartWindowDrag={startWindowDrag}
+          query={store.query}
+          onClearSearch={() => store.setQuery("")}
         />
         <div className="grid-edge-blur is-top" aria-hidden="true" />
         <div className="grid-edge-blur is-bottom" aria-hidden="true" />
       </section>
 
-      <ToastRegion toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} />
+      <Toaster
+        position="bottom-right"
+        visibleToasts={2}
+        gap={6}
+        offset={12}
+        theme={isDark ? "dark" : "light"}
+        toastOptions={{ className: "koi-toast" }}
+      />
 
       {missingCount > 0 && (
         <button className="missing-toast" type="button" onClick={() => resolveFolder()}>
@@ -529,6 +576,7 @@ export function App() {
           mode={previewMode === "quick" ? "quick" : "focus"}
           isClosing={isPreviewClosing}
           showPalette={isPaletteOpen}
+          colorFormat={colorFormat}
           onCopyColor={copyHex}
           onCopyImage={() => void copyImage()}
           onClose={closePreview}
@@ -547,6 +595,7 @@ export function App() {
           soundVolume={soundVolume}
           gridLayout={store.gridLayout}
           showImageTooltips={showImageTooltips}
+          colorFormat={colorFormat}
           onToggleDark={toggleDarkMode}
           onToggleSounds={toggleSounds}
           onSoundVolumeChange={(volume) => {
@@ -555,6 +604,10 @@ export function App() {
           }}
           onGridLayoutChange={store.setGridLayout}
           onToggleImageTooltips={toggleImageTooltips}
+          onColorFormatChange={(format) => {
+            localStorage.setItem("koi.color-format", format);
+            setColorFormat(format);
+          }}
           onDownloadExtension={() => void openUrl(EXTENSION_DOWNLOAD_URL)}
           onClose={() => setIsSettingsOpen(false)}
         />
@@ -618,7 +671,4 @@ export function App() {
   );
 }
 
-  const copyHex = (hex: string) => {
-    void navigator.clipboard.writeText(hex);
-    playSound("copy");
-  };
+type ToastTone = "success" | "error" | "delete" | "added" | "progress";

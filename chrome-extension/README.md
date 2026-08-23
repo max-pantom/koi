@@ -1,6 +1,6 @@
 # Koi Capture for Chrome
 
-Koi Capture is Koi’s local-first Manifest V3 browser extension. It saves images, GIFs, and page/article previews, then sends their source metadata directly to the Koi desktop app.
+Koi Capture is Koi’s local-first Manifest V3 browser extension. It saves images, GIFs, videos, and page/article previews, then sends their source metadata directly to the Koi desktop app.
 
 ## Install from a release ZIP
 
@@ -19,9 +19,10 @@ For development, choose this repository’s `chrome-extension` directory in step
 - Select the toolbar button to browse the current page’s large images or save its page/article preview.
 - Right-click an image, link, or page and choose **Save to Koi → Quick save** to use the default folder.
 - Choose **Save to Koi → Choose folder…** to pick a Koi folder first.
+- Supported X/Twitter, Instagram, TikTok, Facebook, Threads, Bluesky, and Pinterest post links resolve to the post's downloadable media instead of a generic saved-page preview.
 - In the popup, keep **Ask every time** on to choose a destination for toolbar captures, or turn it off and select a default folder.
 
-Koi preserves the original supported image format, including GIF, when the website exposes a downloadable media URL. If a CDN blocks the direct download, the extension retries through an authenticated fetch.
+Koi preserves the original supported image or video format, including GIF, when the website exposes a downloadable media URL. If a CDN blocks the direct download, the extension retries through an authenticated fetch.
 
 ## How storage works
 

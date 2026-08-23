@@ -1,5 +1,5 @@
-import { Grid2X2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { Grid2X2, SearchX } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { GridLayout, MediaItem } from "../lib/types";
 import { MediaTile } from "./MediaTile";
 
@@ -34,11 +34,13 @@ export function MediaGrid({
   onOpen,
   onContextMenu,
   onMeasureBatch,
+  onIndex,
   gridColumns,
   gridLayout,
   showImageTooltips,
   onScrollChange,
-  onStartWindowDrag,
+  query,
+  onClearSearch,
 }: {
   items: MediaItem[];
   selectedItem?: MediaItem;
@@ -49,11 +51,13 @@ export function MediaGrid({
   onOpen: (index: number) => void;
   onContextMenu: (event: MouseEvent, index: number) => void;
   onMeasureBatch: (measurements: MediaMeasurement[]) => void;
+  onIndex: (mediaId: string, dominantColors: string[], colorNames: string[]) => void;
   gridColumns: number;
   gridLayout: GridLayout;
   showImageTooltips: boolean;
   onScrollChange: (scrollTop: number) => void;
-  onStartWindowDrag: (event: PointerEvent<HTMLElement>) => void;
+  query: string;
+  onClearSearch: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | undefined>(undefined);
@@ -61,6 +65,8 @@ export function MediaGrid({
   const resizeThrottleRef = useRef<number | undefined>(undefined);
   const measurementFrameRef = useRef<number | undefined>(undefined);
   const pendingMeasurementsRef = useRef<Map<string, MediaMeasurement>>(new Map());
+  const previousPositionsRef = useRef<Map<string, MasonryPosition>>(new Map());
+  const previousColumnsRef = useRef(gridColumns);
   const [containerWidth, setContainerWidth] = useState(0);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
 
@@ -148,19 +154,46 @@ export function MediaGrid({
     [layout, viewport.height, viewport.top],
   );
 
+  useLayoutEffect(() => {
+    const previousPositions = previousPositionsRef.current;
+    const shouldAnimate = previousPositions.size > 0
+      && previousColumnsRef.current !== gridColumns
+      && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (shouldAnimate) {
+      const tiles = new Map(Array.from(scrollRef.current?.querySelectorAll<HTMLElement>(".tile[data-media-id]") || [])
+        .map((tile) => [tile.dataset.mediaId || "", tile]));
+      for (const position of visible) {
+        const previous = previousPositions.get(position.item.id);
+        const tile = tiles.get(position.item.id);
+        if (!previous || !tile) continue;
+        const keyframes = thumbnailFlipKeyframes(previous, position);
+        if (!keyframes) continue;
+        tile.getAnimations().forEach((animation) => animation.cancel());
+        tile.style.transformOrigin = "top left";
+        tile.animate(keyframes, {
+          duration: 220,
+          easing: "cubic-bezier(0.77, 0, 0.175, 1)",
+        });
+      }
+    }
+    previousPositionsRef.current = new Map(layout.positions.map((position) => [position.item.id, position]));
+    previousColumnsRef.current = gridColumns;
+  }, [gridColumns, layout, visible]);
+
   if (!items.length) {
+    const hasQuery = !!query.trim();
     return (
-      <div className="grid-wrap" ref={scrollRef} onPointerDown={onStartWindowDrag}>
-        <button className="quiet-empty" type="button" onClick={onAddFolder}>
-          <Grid2X2 size={17} aria-hidden="true" />
-          <span>{isLoading ? "Scanning" : hasFolders ? "No images found" : "Add a folder"}</span>
+      <div className="grid-wrap" ref={scrollRef}>
+        <button className="quiet-empty" type="button" onClick={hasQuery ? onClearSearch : onAddFolder}>
+          {hasQuery ? <SearchX size={17} aria-hidden="true" /> : <Grid2X2 size={17} aria-hidden="true" />}
+          <span>{isLoading ? "Scanning" : hasQuery ? `No results for “${query.trim()}” · Clear search` : hasFolders ? "No media found" : "Add a folder"}</span>
         </button>
       </div>
     );
   }
 
   return (
-    <div className="grid-wrap" ref={scrollRef} onPointerDown={onStartWindowDrag}>
+    <div className="grid-wrap" ref={scrollRef}>
       <div className="mood-grid" style={{ height: layout.height }}>
         {visible.map((position) => (
           <MediaTile
@@ -177,11 +210,28 @@ export function MediaGrid({
             onActivate={activateTile}
             onContextMenu={openTileMenu}
             onMeasure={queueMeasurement}
+            onIndex={onIndex}
           />
         ))}
       </div>
     </div>
   );
+}
+
+export function thumbnailFlipKeyframes(previous: MasonryPosition, next: MasonryPosition) {
+  if (!next.width || !next.height) return undefined;
+  const scaleX = previous.width / next.width;
+  const scaleY = previous.height / next.height;
+  if (
+    previous.x === next.x
+    && previous.y === next.y
+    && Math.abs(scaleX - 1) < 0.001
+    && Math.abs(scaleY - 1) < 0.001
+  ) return undefined;
+  return [
+    { transform: `translate3d(${previous.x}px, ${previous.y}px, 0) scale(${scaleX}, ${scaleY})` },
+    { transform: `translate3d(${next.x}px, ${next.y}px, 0) scale(1, 1)` },
+  ];
 }
 
 export function buildLayout(

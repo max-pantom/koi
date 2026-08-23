@@ -2,6 +2,9 @@ import { downloadImageWithFallback } from "./downloads.js";
 import { buildCaptureMetadata } from "./capture-metadata.js";
 import { buildContextCapture } from "./context-capture.js";
 import { routeCaptureToKoi } from "./koi-bridge.js";
+import { classifyPageCapture } from "./capture-kind.js";
+import { articleMetadataFromHtml } from "./article-html.js";
+import "./social-platforms.js";
 
 const CAPTURE_DIRECTORY = "Koi Captures";
 const ROOT_MENU_ID = "koi-save";
@@ -13,31 +16,19 @@ function registerContextMenus() {
     chrome.contextMenus.create({
       id: ROOT_MENU_ID,
       title: "Save to Koi",
-      contexts: ["image", "page", "link"],
+      contexts: ["image", "page", "link", "video"],
     });
     chrome.contextMenus.create({
-      id: "koi-quick-save-image",
+      id: "koi-quick-save",
       parentId: ROOT_MENU_ID,
       title: "Quick save",
-      contexts: ["image"],
+      contexts: ["image", "page", "link", "video"],
     });
     chrome.contextMenus.create({
-      id: "koi-save-image-to",
+      id: "koi-save-to",
       parentId: ROOT_MENU_ID,
       title: "Choose folder…",
-      contexts: ["image"],
-    });
-    chrome.contextMenus.create({
-      id: "koi-quick-save-page",
-      parentId: ROOT_MENU_ID,
-      title: "Quick save",
-      contexts: ["page", "link"],
-    });
-    chrome.contextMenus.create({
-      id: "koi-save-page-to",
-      parentId: ROOT_MENU_ID,
-      title: "Choose folder…",
-      contexts: ["page", "link"],
+      contexts: ["image", "page", "link", "video"],
     });
   });
 }
@@ -51,7 +42,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 async function handleContextCapture(capture) {
-  const resolvedCapture = await resolveContextImage(capture);
+  const resolvedCapture = await resolveContextMedia(capture);
   const settings = await readLocal(["askEveryTime", "quickSaveFolderId"]);
   const shouldPrompt = typeof resolvedCapture.promptForDestination === "boolean"
     ? resolvedCapture.promptForDestination
@@ -79,6 +70,16 @@ async function handleContextCapture(capture) {
       destinationFolderId: message.destinationFolderId,
     });
   }
+  if (message.type === "KOI_CAPTURE_VIDEO") {
+    return captureVideo({
+      videoUrl: message.videoUrl,
+      page: message.page,
+      fallbackTitle: message.videoTitle,
+      tabId: message.tabId,
+      destinationFolderId: message.destinationFolderId,
+      isGif: message.isGif,
+    });
+  }
   return capturePage({
     pageUrl: message.page.pageUrl,
     page: message.page,
@@ -90,7 +91,7 @@ async function handleContextCapture(capture) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type !== "KOI_CAPTURE_IMAGE" && message?.type !== "KOI_CAPTURE_PAGE") return false;
+  if (!["KOI_CAPTURE_IMAGE", "KOI_CAPTURE_VIDEO", "KOI_CAPTURE_PAGE"].includes(message?.type)) return false;
 
   const task = message.type === "KOI_CAPTURE_IMAGE"
     ? captureImage({
@@ -102,7 +103,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sourceLinkUrl: message.sourceLinkUrl,
         destinationFolderId: message.destinationFolderId,
       })
-    : capturePage({
+    : message.type === "KOI_CAPTURE_VIDEO"
+      ? captureVideo({
+          videoUrl: message.videoUrl,
+          fallbackTitle: message.videoTitle || message.page?.title,
+          tabId: message.tabId ?? sender.tab?.id,
+          page: message.page,
+          destinationFolderId: message.destinationFolderId,
+          isGif: message.isGif,
+        })
+      : capturePage({
         pageUrl: message.page?.pageUrl,
         fallbackTitle: message.page?.title,
         tabId: message.tabId ?? sender.tab?.id,
@@ -141,29 +151,135 @@ async function captureImage({
   });
 }
 
+async function captureVideo({ videoUrl, fallbackTitle, tabId, page, destinationFolderId, isGif = false }) {
+  const resolvedVideo = await resolveVideo(tabId, videoUrl, isGif);
+  if (!isDownloadableUrl(resolvedVideo.videoUrl) || /\.(?:m3u8|mpd)(?:[?#]|$)/i.test(resolvedVideo.videoUrl)) {
+    throw new Error("Koi found a streaming player but not its downloadable video file. Start the video, then try again.");
+  }
+  const metadata = typeof tabId === "number"
+    ? await readPage(tabId, { ...page, title: page?.title || fallbackTitle })
+    : page || { title: fallbackTitle, images: [], videos: [] };
+  return downloadCapture({
+    captureType: resolvedVideo.isGif ? "gif" : "video",
+    imageUrl: resolvedVideo.videoUrl,
+    page: metadata,
+    title: fallbackTitle || metadata.title || fileStemFromUrl(resolvedVideo.videoUrl),
+    sourceLinkUrl: "",
+    destinationFolderId,
+  });
+}
+
 async function capturePage({ pageUrl, fallbackTitle, tabId, page, sourceLinkUrl, destinationFolderId }) {
+  const targetUrl = pageUrl || page?.pageUrl || "";
+  if (globalThis.KoiSocialPlatforms.isSocialPostUrl(targetUrl)) {
+    return captureSocialPost({
+      targetUrl,
+      fallbackTitle,
+      tabId,
+      page,
+      sourceLinkUrl,
+      destinationFolderId,
+    });
+  }
   let metadata = typeof tabId === "number"
     ? await readPage(tabId, { ...page, pageUrl: page?.pageUrl || pageUrl, title: page?.title || fallbackTitle })
     : page || { pageUrl, title: fallbackTitle, images: [] };
-  const previewUrl = metadata.ogImage || metadata.images?.[0]?.url;
+  let captureType = classifyPageCapture(metadata);
+  const previewUrl = captureType === "article"
+    ? metadata.articleImage || metadata.ogImage || metadata.images?.[0]?.url
+    : metadata.ogImage || metadata.images?.[0]?.url;
   if (pageUrl && (
     (metadata.pageUrl && normalisePageUrl(pageUrl) !== normalisePageUrl(metadata.pageUrl))
     || !isDownloadableUrl(previewUrl)
   )) {
     metadata = await readRemotePage(pageUrl, fallbackTitle);
+    captureType = classifyPageCapture(metadata);
   }
-  const resolvedPreviewUrl = metadata.ogImage || metadata.images?.[0]?.url;
-  if (!isDownloadableUrl(resolvedPreviewUrl)) {
-    throw new Error("This page does not expose a downloadable preview image.");
-  }
+  const resolvedPreviewUrl = captureType === "article"
+    ? metadata.articleImage || metadata.ogImage || metadata.images?.[0]?.url || articlePlaceholder(metadata)
+    : metadata.ogImage || metadata.images?.[0]?.url || articlePlaceholder(metadata);
   return downloadCapture({
-    captureType: "link",
+    captureType,
     imageUrl: resolvedPreviewUrl,
     page: metadata,
-    title: metadata.title || fallbackTitle || hostname(pageUrl),
+    title: captureType === "article"
+      ? metadata.articleTitle || metadata.title || fallbackTitle || hostname(pageUrl)
+      : metadata.title || fallbackTitle || hostname(pageUrl),
     sourceLinkUrl,
     destinationFolderId,
   });
+}
+
+async function captureSocialPost({ targetUrl, fallbackTitle, tabId, page, sourceLinkUrl, destinationFolderId }) {
+  let resolved;
+  if (typeof tabId === "number") {
+    try {
+      resolved = await chrome.tabs.sendMessage(tabId, { type: "KOI_RESOLVE_SOCIAL_MEDIA", targetUrl });
+    } catch {
+      resolved = undefined;
+    }
+  }
+
+  let metadata = resolved?.page;
+  let media = Array.isArray(resolved?.media) ? resolved.media : [];
+  if (!media.length) {
+    const remote = await readRemotePage(targetUrl, fallbackTitle);
+    metadata = remote;
+    if (isDownloadableUrl(remote.ogVideo)) {
+      media = [{ kind: "video", url: remote.ogVideo, title: remote.title, isGif: false }];
+    } else if (isDownloadableUrl(remote.ogImage) && isLikelySocialMediaUrl(remote.ogImage)) {
+      media = [{ kind: "image", url: remote.ogImage, title: remote.title, sourceLinkUrl: targetUrl }];
+    }
+  }
+
+  if (!media.length) {
+    const platform = globalThis.KoiSocialPlatforms.socialPlatform(targetUrl);
+    throw new Error(`Koi could not find downloadable media in this ${platform} post. Open the post, let its media load, then try again.`);
+  }
+
+  const socialPage = {
+    ...(page || {}),
+    ...(metadata || {}),
+    pageUrl: targetUrl,
+    canonicalUrl: targetUrl,
+    articleMarkdown: "",
+    hasArticleSchema: false,
+    hasArticleContainer: false,
+    images: [],
+    videos: [],
+  };
+  const results = [];
+  for (const item of media.slice(0, 20)) {
+    const result = item.kind === "video"
+      ? await captureVideo({
+          videoUrl: item.url,
+          fallbackTitle: item.title || fallbackTitle || socialPage.title,
+          page: socialPage,
+          destinationFolderId,
+          isGif: item.isGif,
+        })
+      : await captureImage({
+          imageUrl: item.url,
+          fallbackTitle: item.title || fallbackTitle || socialPage.title,
+          page: socialPage,
+          sourceLinkUrl: item.sourceLinkUrl || sourceLinkUrl || targetUrl,
+          destinationFolderId,
+        });
+    results.push(result);
+  }
+  return {
+    ...results[0],
+    savedCount: results.length,
+    usedFallback: results.some((result) => result.usedFallback),
+  };
+}
+
+function isLikelySocialMediaUrl(value) {
+  try {
+    return /pbs\.twimg\.com|cdninstagram\.com|fbcdn\.net|tiktokcdn|tiktokcdn-us|pinimg\.com|cdn\.bsky\.app/i.test(new URL(value).hostname);
+  } catch {
+    return false;
+  }
 }
 
 async function readRemotePage(pageUrl, fallbackTitle) {
@@ -180,7 +296,14 @@ async function readRemotePage(pageUrl, fallbackTitle) {
       "twitter:image",
       "twitter:image:src",
     ]);
+    const videoValue = extractMeta(html, [
+      "og:video:secure_url",
+      "og:video:url",
+      "og:video",
+      "twitter:player:stream",
+    ]);
     const resolvedPageUrl = response.url || pageUrl;
+    const article = articleMetadataFromHtml(html);
     return {
       pageUrl: resolvedPageUrl,
       canonicalUrl: resolveUrl(extractLinkHref(html, "canonical"), resolvedPageUrl),
@@ -188,7 +311,11 @@ async function readRemotePage(pageUrl, fallbackTitle) {
       description,
       siteName,
       ogImage: resolveUrl(imageValue, resolvedPageUrl),
+      ogVideo: resolveUrl(videoValue, resolvedPageUrl),
+      articleImage: resolveUrl(imageValue, resolvedPageUrl),
+      ...article,
       images: [],
+      videos: [],
     };
   } catch (error) {
     throw new Error(`Unable to read that website's preview: ${readableError(error)}`);
@@ -255,8 +382,25 @@ function normalisePageUrl(value) {
   }
 }
 
+function articlePlaceholder(page) {
+  const title = escapeXml(page.title || "Saved page").slice(0, 110);
+  const site = escapeXml(page.siteName || hostname(page.pageUrl) || "Website").slice(0, 70);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675"><rect width="1200" height="675" fill="#efefec"/><circle cx="1060" cy="120" r="170" fill="#deded8"/><path d="M0 570C290 460 490 720 800 560s400-20 400-20v135H0z" fill="#e4e4df"/><text x="88" y="116" fill="#686862" font-family="system-ui,sans-serif" font-size="25" font-weight="600">${site}</text><text x="88" y="242" fill="#292927" font-family="system-ui,sans-serif" font-size="54" font-weight="600">${title}</text><text x="88" y="585" fill="#777770" font-family="system-ui,sans-serif" font-size="22">Saved with Koi</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function escapeXml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&apos;",
+  })[character]);
+}
+
 async function downloadCapture({ captureType, imageUrl, page, title, sourceLinkUrl, destinationFolderId }) {
-  const extension = await inferExtension(imageUrl);
+  const extension = await inferExtension(imageUrl, captureType);
   const stem = captureStem(title, page.siteName || hostname(page.pageUrl));
   const imageFilename = `${CAPTURE_DIRECTORY}/${stem}.${extension}`;
   const capturedAt = new Date().toISOString();
@@ -309,10 +453,16 @@ async function downloadCapture({ captureType, imageUrl, page, title, sourceLinkU
   };
 }
 
-async function resolveContextImage(capture) {
-  if (capture.type !== "KOI_CAPTURE_IMAGE") return capture;
-  const resolved = await resolveImage(capture.tabId, capture.imageUrl, capture.sourceLinkUrl);
-  return { ...capture, ...resolved };
+async function resolveContextMedia(capture) {
+  if (capture.type === "KOI_CAPTURE_IMAGE") {
+    const resolved = await resolveImage(capture.tabId, capture.imageUrl, capture.sourceLinkUrl);
+    return { ...capture, ...resolved };
+  }
+  if (capture.type === "KOI_CAPTURE_VIDEO") {
+    const resolved = await resolveVideo(capture.tabId, capture.videoUrl, capture.isGif);
+    return { ...capture, ...resolved };
+  }
+  return capture;
 }
 
 async function resolveImage(tabId, imageUrl, sourceLinkUrl) {
@@ -326,6 +476,19 @@ async function resolveImage(tabId, imageUrl, sourceLinkUrl) {
     };
   } catch {
     return { imageUrl: originalFallback, sourceLinkUrl: sourceLinkUrl || "" };
+  }
+}
+
+async function resolveVideo(tabId, videoUrl, isGif = false) {
+  if (typeof tabId !== "number") return { videoUrl: isDownloadableUrl(videoUrl) ? videoUrl : "", isGif };
+  try {
+    const resolved = await chrome.tabs.sendMessage(tabId, { type: "KOI_RESOLVE_VIDEO", videoUrl });
+    return {
+      videoUrl: isDownloadableUrl(resolved?.videoUrl) ? resolved.videoUrl : (isDownloadableUrl(videoUrl) ? videoUrl : ""),
+      isGif: !!resolved?.isGif || isGif,
+    };
+  } catch {
+    return { videoUrl: isDownloadableUrl(videoUrl) ? videoUrl : "", isGif };
   }
 }
 
@@ -372,27 +535,34 @@ async function readPage(tabId, fallback) {
   if (typeof tabId !== "number") return { ...fallback, images: [] };
   try {
     const page = await chrome.tabs.sendMessage(tabId, { type: "KOI_GET_PAGE" });
-    return { ...fallback, ...page, images: page.images || fallback.images || [] };
+    return {
+      ...fallback,
+      ...page,
+      images: page.images || fallback.images || [],
+      videos: page.videos || fallback.videos || [],
+    };
   } catch {
     return { ...fallback, siteName: hostname(fallback.pageUrl), images: [] };
   }
 }
 
-async function inferExtension(url) {
+async function inferExtension(url, captureType) {
   const fromPath = extensionFromUrl(url);
   try {
     const response = await fetch(url, { method: "HEAD", credentials: "include" });
     const contentType = response.headers.get("content-type")?.split(";")[0].trim();
-    return extensionFromMime(contentType) || fromPath || "jpg";
+    return extensionFromMime(contentType) || fromPath || (["video", "gif"].includes(captureType) ? "mp4" : "jpg");
   } catch {
-    return fromPath || "jpg";
+    return fromPath || (["video", "gif"].includes(captureType) ? "mp4" : "jpg");
   }
 }
 
 function extensionFromUrl(value) {
+  const dataMime = typeof value === "string" ? value.match(/^data:([^;,]+)/i)?.[1]?.toLowerCase() : "";
+  if (dataMime) return extensionFromMime(dataMime);
   try {
     const extension = new URL(value).pathname.split(".").pop()?.toLowerCase();
-    return ["avif", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif", "tiff", "webp"].includes(extension)
+    return ["avif", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "svg", "tif", "tiff", "webp", "m4v", "mov", "mp4", "ogv", "webm"].includes(extension)
       ? extension.replace("jpeg", "jpg")
       : "";
   } catch {
@@ -412,6 +582,10 @@ function extensionFromMime(value) {
     "image/svg+xml": "svg",
     "image/tiff": "tiff",
     "image/webp": "webp",
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/ogg": "ogv",
+    "video/webm": "webm",
   })[value] || "";
 }
 

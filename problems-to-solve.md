@@ -24,3 +24,41 @@
 - [x] logo in the extension isn't big in size
 - [x] better readme talking about how to dowload both the app and the extension
 - [x] script for github workflow for all dektop, mac both, win and linux. just write in a file ill put it myself
+- [x] instagram save with slideshows of all content
+- [x] ctrl V saves either the image in your clipboard or link
+- [x] article shows title, og and some writeup and when clicked shows and renders the article in markdown
+- [x] better color swatch and you can click to copy the hex code also you can change in the settings for the colors to be hex or any other form like 3
+- [x] video saving from X or any website should be allowed now so maybe if its a video add the koi extension icon inside to download and save
+- [x] fix search and search ui and search active mode
+- [x] use sonnar for toast  [https://github.com/emilkowalski/sonner](https://github.com/emilkowalski/sonner)
+- [x] performace increase do major performance ovehaul to make it faster especially when scanning and scrolling
+- [x] for some reason IG is saving image carousel or batch as article
+- [x] and X article is saving as saved page instead of the X article og not the X page og but the article header
+- [x] videos on Ig are saving as saved pages and not downloading only downloading the first frame
+- [x] saving video on X is not even working
+- [x] gif also not workin
+- [x] color swatch should be circle as before and no hex code once you click the circle the code auto maticlaly copies also they should not be on the image but below
+- [x] redesign dropdowns
+- [x] the version should always update in settings
+- [x] video should not have a video tag also its not working
+- [x] lets make sure gifs are working well
+- [x] your right click for X wont show to save video so what about we add something to every video and gif stuff in X beside bookmark that can save to koi
+- [x] sonnar should be smaller
+- [x] use cmdk for the command
+- [x] show me the interface as image if we used raduix ui to build the interface or any other thing i wanna see how they would look obviously that not what we are using iuntil i see so just do it and clean up after uyou go the image
+- [x] the sidebar should know when to move and when not to i mean for example in article using my cursor when am reading an article i cant go downcause if i scroll it would take me to the next image or so... also for some reason we can't use the scrollbar to go up and down it would be moving the window
+- [x] harden article it works some time and some time it just saves as pages
+- [x] when switiching from small to anything or the sizes it always lags and the animation is jumpy so fix
+- [x] color swatch should look loike before and some times it doesn't pick the color
+
+- [x] let explore syncing your X bookmarks to koi — see `docs/x-bookmark-sync.md`
+- [x] remove duplicate Quick save and Choose folder context-menu entries
+- [x] save supported social post links as their actual images or videos instead of saved pages
+- [x] stop scrollbar interaction from dragging the app window
+- [x] disable accidental highlighting throughout the app and article reader
+- [x] animate thumbnail-size changes without layout jank
+- [x] remove Smart/Standard labels and blue active states from search
+- [x] group and polish the cmdk command palette using neutral Radix/shadcn patterns
+- [x] add real app screenshots and aesthetic product mockups to the README and images folder
+- [x] add the reusable `.skl` app showcase skill
+- [x] present the Koi icon in a macOS-style Dock mockup

@@ -1,13 +1,16 @@
 import { ArrowLeft, ArrowRight, ExternalLink, X } from "lucide-react";
-import { useRef, type CSSProperties, type WheelEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { mediaSrc } from "../lib/media";
 import type { MediaItem } from "../lib/types";
+import { formatColor, type ColorFormat } from "../lib/colors";
+import { ArticleReader } from "./ArticleReader";
 
 export function FocusView({
   item,
   mode,
   isClosing,
   showPalette,
+  colorFormat,
   onCopyColor,
   onCopyImage,
   onClose,
@@ -19,6 +22,7 @@ export function FocusView({
   mode: "quick" | "focus";
   isClosing: boolean;
   showPalette: boolean;
+  colorFormat: ColorFormat;
   onCopyColor: (hex: string) => void;
   onCopyImage: () => void;
   onClose: () => void;
@@ -27,6 +31,7 @@ export function FocusView({
   onOpenSource: () => void;
 }) {
   const lastWheelAt = useRef(0);
+  const [videoError, setVideoError] = useState(false);
   const sourceUrl = item.sourceLinkUrl
     || item.sourcePageUrl
     || item.sourceCanonicalUrl
@@ -34,8 +39,13 @@ export function FocusView({
     || item.sourceUrl;
   const sourceHost = sourceHostname(sourceUrl) || item.sourceSiteName || "Open source";
   const imageRatio = item.width && item.height ? item.width / item.height : 1;
+  const isArticle = item.captureType === "article" && !!item.sourceContentMarkdown;
+  const isVideo = item.kind === "video";
+
+  useEffect(() => setVideoError(false), [item.id]);
 
   const onWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest(".article-reader-wrap")) return;
     event.preventDefault();
     const now = performance.now();
     if (now - lastWheelAt.current < 240 || Math.abs(event.deltaY) < 12) return;
@@ -57,7 +67,7 @@ export function FocusView({
       }}
       onWheel={onWheel}
     >
-      <img className="preview-blur" src={mediaSrc(item)} alt="" draggable={false} />
+      {!isArticle && !isVideo && <img className="preview-blur" src={mediaSrc(item)} alt="" draggable={false} />}
       <button
         className="preview-close"
         type="button"
@@ -79,29 +89,54 @@ export function FocusView({
         <ArrowLeft size={18} aria-hidden="true" />
       </button>
       <div className="preview-media">
-        <div
-          className="preview-image-frame"
-          style={{ "--image-ratio": imageRatio } as CSSProperties}
-          onPointerDown={(event) => event.stopPropagation()}
-          onContextMenu={(event) => event.stopPropagation()}
-        >
-          <img src={mediaSrc(item)} alt={item.sourceTitle || "Selected image"} draggable={false} />
-        </div>
-        {showPalette && (
-          <div className="focus-palette" onPointerDown={(event) => event.stopPropagation()}>
-            {item.dominantColors.slice(0, 5).map((hex) => (
-              <button
-                key={hex}
-                type="button"
-                style={{ background: hex }}
-                onClick={() => onCopyColor(hex)}
-                aria-label={`Copy color ${hex}`}
-                title={`Copy ${hex}`}
-              />
-            ))}
+        {isArticle ? (
+          <div className="article-reader-wrap" onPointerDown={(event) => event.stopPropagation()}>
+            <ArticleReader item={item} />
+          </div>
+        ) : isVideo && !videoError ? (
+          <video
+            className="preview-video"
+            src={mediaSrc(item)}
+            autoPlay
+            loop={item.captureType === "gif"}
+            playsInline
+            controls
+            preload="metadata"
+            onError={() => setVideoError(true)}
+            onPointerDown={(event) => event.stopPropagation()}
+            onContextMenu={(event) => event.stopPropagation()}
+          />
+        ) : isVideo ? (
+          <div className="preview-video-error" role="status" onPointerDown={(event) => event.stopPropagation()}>
+            <strong>This video codec can’t play inside Koi.</strong>
+            <span>The file is still saved. Use the source or Finder action to open it in another player.</span>
+          </div>
+        ) : (
+          <div
+            className="preview-image-frame"
+            style={{ "--image-ratio": imageRatio } as CSSProperties}
+            onPointerDown={(event) => event.stopPropagation()}
+            onContextMenu={(event) => event.stopPropagation()}
+          >
+            <img src={mediaSrc(item)} alt={item.sourceTitle || "Selected image"} draggable={false} />
           </div>
         )}
       </div>
+      {showPalette && item.dominantColors.length > 0 && (
+        <div className="focus-palette" role="group" aria-label="Copy an image color" onPointerDown={(event) => event.stopPropagation()}>
+          {item.dominantColors.slice(0, 5).map((hex) => (
+            <button
+              key={hex}
+              type="button"
+              onClick={() => onCopyColor(hex)}
+              aria-label={`Copy ${formatColor(hex, colorFormat)}`}
+              title={`Copy ${formatColor(hex, colorFormat)}`}
+            >
+              <span className="focus-palette-swatch" style={{ background: hex }} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
       <button
         className="preview-nav right"
         type="button"
@@ -114,6 +149,8 @@ export function FocusView({
       </button>
       {(item.sourceTitle || sourceUrl) && <div className="preview-caption">
         {item.captureType === "link" && <span className="preview-kind">Saved page</span>}
+        {item.captureType === "article" && <span className="preview-kind">Article</span>}
+        {item.captureType === "gif" && <span className="preview-kind">GIF</span>}
         {item.sourceTitle && <span>{item.sourceTitle}</span>}
         {sourceUrl && (
           <button

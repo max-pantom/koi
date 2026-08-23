@@ -1,10 +1,18 @@
 export function buildContextCapture(info, tab) {
   const pageUrl = info.pageUrl || tab?.url || "";
+  const menuItemId = String(info.menuItemId || "");
+  const isUnifiedAction = ["koi-quick-save", "koi-save-to"].includes(menuItemId);
+  const promptForDestination = menuItemId === "koi-save-to"
+    || /-to$/.test(menuItemId)
+      ? true
+      : menuItemId.includes("quick-save")
+        ? false
+        : undefined;
 
-  if (["koi-save-image", "koi-quick-save-image", "koi-save-image-to"].includes(info.menuItemId)) {
+  if ((isUnifiedAction && info.mediaType === "image") || ["koi-save-image", "koi-quick-save-image", "koi-save-image-to"].includes(menuItemId)) {
     return {
       type: "KOI_CAPTURE_IMAGE",
-      promptForDestination: info.menuItemId === "koi-save-image-to" ? true : info.menuItemId === "koi-quick-save-image" ? false : undefined,
+      promptForDestination,
       tabId: tab?.id,
       imageUrl: info.srcUrl || "",
       imageTitle: tab?.title || "Image",
@@ -19,11 +27,29 @@ export function buildContextCapture(info, tab) {
     };
   }
 
-  if (["koi-save-page", "koi-quick-save-page", "koi-save-page-to"].includes(info.menuItemId)) {
+  if ((isUnifiedAction && info.mediaType === "video") || ["koi-quick-save-video", "koi-save-video-to"].includes(menuItemId)) {
+    return {
+      type: "KOI_CAPTURE_VIDEO",
+      promptForDestination,
+      tabId: tab?.id,
+      videoUrl: info.srcUrl || "",
+      videoTitle: tab?.title || "Video",
+      page: {
+        pageUrl,
+        canonicalUrl: "",
+        title: tab?.title || "",
+        siteName: hostname(pageUrl),
+        images: [],
+        videos: [],
+      },
+    };
+  }
+
+  if (isUnifiedAction || ["koi-save-page", "koi-quick-save-page", "koi-save-page-to"].includes(menuItemId)) {
     const destinationUrl = info.linkUrl || pageUrl;
     return {
       type: "KOI_CAPTURE_PAGE",
-      promptForDestination: info.menuItemId === "koi-save-page-to" ? true : info.menuItemId === "koi-quick-save-page" ? false : undefined,
+      promptForDestination,
       tabId: tab?.id,
       sourceLinkUrl: info.linkUrl || "",
       page: {

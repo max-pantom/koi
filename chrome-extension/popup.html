@@ -25,6 +25,9 @@
           <button id="page-tab" type="button" role="tab" aria-selected="false" aria-controls="page-panel" tabindex="-1">
             Page or article
           </button>
+          <button id="videos-tab" type="button" role="tab" aria-selected="false" aria-controls="videos-panel" tabindex="-1">
+            Videos
+          </button>
         </div>
 
         <section id="images-panel" class="tab-panel" role="tabpanel" aria-labelledby="images-tab">
@@ -35,6 +38,7 @@
             </div>
             <span id="image-count" class="count-badge"></span>
           </div>
+          <button id="save-carousel" class="secondary carousel-save" type="button" hidden>Save Instagram post</button>
           <div id="image-grid" class="image-grid"></div>
           <div id="capture-unavailable" class="capture-unavailable" hidden>
             <span class="capture-unavailable-icon" aria-hidden="true">
@@ -64,6 +68,18 @@
             <button id="save-page" class="primary" type="button" disabled>Save page or article</button>
           </div>
         </section>
+
+        <section id="videos-panel" class="tab-panel" role="tabpanel" aria-labelledby="videos-tab" hidden>
+          <div class="section-head">
+            <div>
+              <h2>Videos on this page</h2>
+              <p>Choose a downloadable video file.</p>
+            </div>
+            <span id="video-count" class="count-badge"></span>
+          </div>
+          <div id="video-grid" class="video-grid"></div>
+          <p id="empty-videos" class="empty" hidden>No downloadable video files were found.</p>
+        </section>
       </section>
 
       <section class="destination-card" aria-labelledby="destination-title">
@@ -75,9 +91,12 @@
         </div>
         <label class="field" for="destination-folder">
           <span>Save to</span>
-          <select id="destination-folder" disabled>
-            <option value="">Koi Captures</option>
-          </select>
+          <span class="select-control">
+            <select id="destination-folder" disabled>
+              <option value="">Koi Captures</option>
+            </select>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+          </span>
         </label>
         <details class="capture-settings">
           <summary>Quick Save</summary>
@@ -90,9 +109,12 @@
           </label>
           <label class="field quick-save-field" for="quick-save-folder">
             <span>Default folder</span>
-            <select id="quick-save-folder" disabled>
-              <option value="">Koi Captures</option>
-            </select>
+            <span class="select-control">
+              <select id="quick-save-folder" disabled>
+                <option value="">Koi Captures</option>
+              </select>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+            </span>
           </label>
         </details>
       </section>

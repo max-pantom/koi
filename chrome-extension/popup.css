@@ -70,8 +70,8 @@ input:focus-visible {
 .popup-header .bridge-state { margin-inline-start: auto; }
 
 .brand-mark {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   object-fit: contain;
 }
@@ -128,7 +128,7 @@ h2 { color: #333330; font-size: 12px; line-height: 1.3; }
 
 .panel-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 0.9fr 1.35fr 0.9fr;
   gap: 3px;
   padding: 3px;
   border-radius: 12px;
@@ -165,6 +165,50 @@ h2 { color: #333330; font-size: 12px; line-height: 1.3; }
   gap: 6px;
   overflow: auto;
   padding: 1px;
+}
+
+.video-grid {
+  display: grid;
+  max-height: 238px;
+  gap: 7px;
+  overflow: auto;
+  padding: 1px;
+}
+
+.video-button {
+  display: grid;
+  min-height: 54px;
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 6px;
+  border-radius: 10px;
+  color: #343431;
+  background: #f4f4f1;
+  text-align: left;
+}
+
+.video-button img,
+.video-button-placeholder {
+  width: 62px;
+  height: 42px;
+  border-radius: 7px;
+  object-fit: cover;
+  background: #d5d5d1;
+}
+
+.video-button span {
+  overflow: hidden;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-button strong {
+  padding-inline-end: 4px;
+  color: #62625d;
+  font-size: 9px;
+  text-transform: uppercase;
 }
 
 .image-button {
@@ -229,6 +273,12 @@ h2 { color: #333330; font-size: 12px; line-height: 1.3; }
   font-weight: 600;
 }
 
+.carousel-save {
+  width: 100%;
+  color: #fff;
+  background: #292927;
+}
+
 .secondary kbd {
   margin-inline-start: 5px;
   color: #696963;
@@ -279,11 +329,39 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .field select {
   width: 100%;
   min-height: 33px;
-  padding: 0 30px 0 9px;
+  appearance: none;
+  padding: 0 34px 0 10px;
   border: 1px solid #d7d7d2;
-  border-radius: 9px;
+  border-radius: 10px;
   color: #292927;
   background: #ebebe7;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+  cursor: pointer;
+}
+
+.select-control {
+  position: relative;
+  display: block;
+}
+
+.select-control svg {
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: #696963;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.field select:hover:not(:disabled) {
+  border-color: #c4c4be;
+  background: #e5e5e0;
 }
 
 .capture-settings { color: #5d5d58; font-size: 10.5px; }
@@ -330,6 +408,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .destination-card { background: #232322; box-shadow: inset 0 0 0 1px #3b3b38; }
   .field { color: #c8c8c2; }
   .field select, .switch-row { color: #ededE8; border-color: #444440; background: #30302e; }
+  .select-control svg { stroke: #b9b9b2; }
   .switch-row strong { color: #ededE8; }
   .switch-row small, .capture-settings summary { color: #b9b9b2; }
   .primary { color: #1f1f1d; background: #ecece8; }

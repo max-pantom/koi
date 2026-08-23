@@ -27,6 +27,7 @@ type LibraryStore = {
   updateItemSize: (mediaId: string, width: number, height: number) => void;
   updateItemSizes: (measurements: Array<{ mediaId: string; width: number; height: number }>) => void;
   saveMediaIndex: (mediaId: string, dominantColors: string[], colorNames: string[]) => Promise<void>;
+  extractMediaIndex: (mediaId: string) => Promise<void>;
   saveTags: (mediaId: string, tags: string[]) => Promise<void>;
   reconnectFolder: (folderId: string) => Promise<void>;
   setQuery: (query: string) => void;
@@ -65,8 +66,8 @@ export function useLibraryStore(): LibraryStore {
   }, [activeFolderId, items]);
   const folderNames = useMemo(() => new Map(folders.map((folder) => [folder.id, folder.name])), [folders]);
   const filteredItems = useMemo(
-    () => searchMedia(scopedItems, query, "smart", folderNames),
-    [folderNames, query, scopedItems],
+    () => searchMedia(scopedItems, query, searchMode, folderNames),
+    [folderNames, query, scopedItems, searchMode],
   );
   const selectedItem = filteredItems[Math.min(selectedIndex, Math.max(filteredItems.length - 1, 0))];
 
@@ -208,6 +209,19 @@ export function useLibraryStore(): LibraryStore {
     }
   }, []);
 
+  const extractMediaIndex = useCallback(async (mediaId: string) => {
+    try {
+      const index = await invoke<{ dominantColors: string[]; colorNames: string[] }>("extract_media_colors", { mediaId });
+      setItems((current) => updateOne(current, mediaId, (item) => ({
+        ...item,
+        dominantColors: index.dominantColors,
+        colorNames: index.colorNames,
+      })));
+    } catch {
+      // Unsupported and fully transparent images simply have no palette.
+    }
+  }, []);
+
   const saveTags = useCallback(async (mediaId: string, tags: string[]) => {
     setItems((current) => updateOne(current, mediaId, (item) => (
       equalStrings(item.tags, tags) ? item : { ...item, tags }
@@ -256,6 +270,7 @@ export function useLibraryStore(): LibraryStore {
     updateItemSize,
     updateItemSizes,
     saveMediaIndex,
+    extractMediaIndex,
     saveTags,
     reconnectFolder,
     setQuery: (nextQuery) => {

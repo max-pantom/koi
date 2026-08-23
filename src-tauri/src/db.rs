@@ -294,6 +294,8 @@ fn migrate(conn: &Connection) -> Result<(), String> {
     add_column(conn, "media", "source_page_title", "text")?;
     add_column(conn, "media", "source_site_name", "text")?;
     add_column(conn, "media", "source_description", "text")?;
+    add_column(conn, "media", "source_byline", "text")?;
+    add_column(conn, "media", "source_content_markdown", "text")?;
     add_column(conn, "media", "captured_at", "text")?;
     Ok(())
 }
@@ -336,7 +338,7 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
         .prepare(
             "select id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
              capture_type, source_url, source_final_url, source_page_url, source_canonical_url, source_link_url,
-             source_title, source_page_title, source_site_name, source_description, captured_at
+             source_title, source_page_title, source_site_name, source_description, source_byline, source_content_markdown, captured_at
             from media
             order by coalesce(modified_at, created_at, 0) desc, name asc",
         )
@@ -372,7 +374,9 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
                 source_page_title: row.get(20)?,
                 source_site_name: row.get(21)?,
                 source_description: row.get(22)?,
-                captured_at: row.get(23)?,
+                source_byline: row.get(23)?,
+                source_content_markdown: row.get(24)?,
+                captured_at: row.get(25)?,
             })
         })
         .map_err(|error| error.to_string())?;
@@ -407,8 +411,8 @@ fn upsert_media(
         "insert into media
         (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
          capture_type, source_url, source_final_url, source_page_url, source_canonical_url, source_link_url,
-         source_title, source_page_title, source_site_name, source_description, captured_at)
-        values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)
+         source_title, source_page_title, source_site_name, source_description, source_byline, source_content_markdown, captured_at)
+        values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)
         on conflict do update set
           id = excluded.id,
           folder_id = excluded.folder_id,
@@ -430,6 +434,8 @@ fn upsert_media(
           source_page_title = excluded.source_page_title,
           source_site_name = excluded.source_site_name,
           source_description = excluded.source_description,
+          source_byline = excluded.source_byline,
+          source_content_markdown = excluded.source_content_markdown,
           captured_at = excluded.captured_at",
         params![
             item.id,
@@ -455,6 +461,8 @@ fn upsert_media(
             item.source_page_title,
             item.source_site_name,
             item.source_description,
+            item.source_byline,
+            item.source_content_markdown,
             item.captured_at
         ],
     )

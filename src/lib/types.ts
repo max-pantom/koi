@@ -5,8 +5,8 @@ export type Folder = {
   addedAt: number;
 };
 
-export type MediaKind = "image" | "gif";
-export type CaptureType = "image" | "link";
+export type MediaKind = "image" | "gif" | "video";
+export type CaptureType = "image" | "link" | "article" | "video" | "gif";
 
 export type MediaItem = {
   id: string;
@@ -33,6 +33,8 @@ export type MediaItem = {
   sourcePageTitle?: string;
   sourceSiteName?: string;
   sourceDescription?: string;
+  sourceByline?: string;
+  sourceContentMarkdown?: string;
   capturedAt?: string;
 };
 

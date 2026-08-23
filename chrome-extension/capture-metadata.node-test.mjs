@@ -14,6 +14,8 @@ test("keeps image, final, page, canonical, and enclosing-link URLs distinct", ()
       title: "Design gallery",
       siteName: "Example",
       description: "A room full of design references.",
+      byline: "Mara Example",
+      articleMarkdown: "# Design gallery\n\nA room full of design references.",
     },
     title: "Oak chair",
     capturedAt: "2026-08-12T12:00:00.000Z",
@@ -30,4 +32,6 @@ test("keeps image, final, page, canonical, and enclosing-link URLs distinct", ()
   assert.equal(metadata.sourceTitle, "Oak chair");
   assert.equal(metadata.sourcePageTitle, "Design gallery");
   assert.equal(metadata.sourceDescription, "A room full of design references.");
+  assert.equal(metadata.sourceByline, "Mara Example");
+  assert.match(metadata.sourceContentMarkdown, /Design gallery/);
 });

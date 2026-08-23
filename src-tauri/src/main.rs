@@ -20,11 +20,13 @@ fn main() {
             commands::get_media_file,
             commands::save_tags,
             commands::save_media_index,
+            commands::extract_media_colors,
             commands::reconnect_folder,
             commands::get_library,
             commands::ensure_capture_folder,
             commands::delete_media,
-            commands::copy_media_image
+            commands::copy_media_image,
+            commands::import_clipboard
         ])
         .setup(|app| {
             // The extension can still explain that Downloads access is needed
