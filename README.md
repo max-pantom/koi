@@ -4,7 +4,7 @@ Your visual references, close to home.
 
 Koi is a fast, local-first moodboard for images, GIFs, videos, saved pages, and articles. Everything stays in folders on your computer—no account or cloud sync required.
 
-![Koi's dark moodboard showing a visual reference library](docs/images/koi-library.png)
+![Koi's dark moodboard showing a visual reference library](docs/images/image.png)
 
 ## What you can do
 

@@ -65,3 +65,8 @@
 - [x] replace striped pasted-link placeholders with a proper saved-page preview card
 - [x] add an earthy Dock mockup and an original-dark Dock edit using the alternate Koi icon
 - [x] add signed automatic app updates with a manual check in Settings
+- [ ] the white border around rightclick menu and drop down remove it
+- [ ] the onboarding no gradients pls also better graphics and more like raycast
+- [ ] it should be on its own window and should not be in the preveiew state
+- [ ] remove both installer and preview from settings only accessable through a series of command or some sort in the app 
+- [ ] saved pages are not showing OG again or are not getting the OG pls rectify
