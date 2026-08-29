@@ -1,7 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEventHandler } from "react";
+import { useEffect, useRef, type KeyboardEvent, type PointerEventHandler } from "react";
 import {
-  ArrowLeft,
-  ArrowRight,
   Check,
   ClipboardPaste,
   Folder,
@@ -15,9 +13,7 @@ import dmgBackground from "../../src-tauri/dmg-background.png";
 import applicationsFolderIcon from "../assets/macos-applications-folder.png";
 import libraryPreview from "../assets/onboarding-library.jpg";
 
-export type ProductPreviewKind = "installer" | "onboarding";
-
-const onboardingSteps = [
+export const onboardingSteps = [
   {
     label: "Welcome",
     title: "Everything you save,\nin one beautiful place.",
@@ -36,25 +32,21 @@ const onboardingSteps = [
 ] as const;
 
 export function ProductPreview({
-  initialPreview,
   onClose,
   onStartWindowDrag,
 }: {
-  initialPreview: ProductPreviewKind;
+  initialPreview: "installer";
   onClose: () => void;
   onStartWindowDrag: PointerEventHandler<HTMLElement>;
 }) {
-  const [preview, setPreview] = useState<ProductPreviewKind>(initialPreview);
-  const [onboardingStep, setOnboardingStep] = useState(0);
   const dialogRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const onboardingHeadingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-    (initialPreview === "onboarding" ? onboardingHeadingRef.current : closeRef.current)?.focus({ preventScroll: true });
+    closeRef.current?.focus({ preventScroll: true });
     return () => previouslyFocused?.focus({ preventScroll: true });
-  }, [initialPreview]);
+  }, []);
 
   const keepFocusInside = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "Escape") {
@@ -78,68 +70,19 @@ export function ProductPreview({
     }
   };
 
-  const selectPreview = (nextPreview: ProductPreviewKind) => {
-    setPreview(nextPreview);
-    if (nextPreview === "onboarding") setOnboardingStep(0);
-  };
-
-  const goToOnboardingStep = (nextStep: number) => {
-    setOnboardingStep(nextStep);
-    requestAnimationFrame(() => onboardingHeadingRef.current?.focus({ preventScroll: true }));
-  };
-
-  const movePreviewTab = (event: KeyboardEvent<HTMLButtonElement>, current: ProductPreviewKind) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    const next = current === "installer" ? "onboarding" : "installer";
-    selectPreview(next);
-    document.querySelector<HTMLButtonElement>(`[data-preview-tab="${next}"]`)?.focus();
-  };
-
-  const step = onboardingSteps[onboardingStep];
-
   return (
     <section
       ref={dialogRef}
       className="product-preview"
       role="dialog"
       aria-modal="true"
-      aria-label="Koi product previews"
+      aria-label="Koi installer preview"
       onKeyDown={keepFocusInside}
     >
       <header className="product-preview-header" onPointerDown={onStartWindowDrag}>
         <div className="product-preview-heading">
-          <span>{preview === "installer" ? "Installer" : "Onboarding"}</span>
+          <span>Installer</span>
           <span className="product-preview-badge">Preview</span>
-        </div>
-
-        <div className="product-preview-tabs" role="tablist" aria-label="Preview surface">
-          <button
-            type="button"
-            role="tab"
-            data-preview-tab="installer"
-            aria-controls="product-preview-surface"
-            tabIndex={preview === "installer" ? 0 : -1}
-            aria-selected={preview === "installer"}
-            className={preview === "installer" ? "is-active" : undefined}
-            onKeyDown={(event) => movePreviewTab(event, "installer")}
-            onClick={() => selectPreview("installer")}
-          >
-            Mac installer
-          </button>
-          <button
-            type="button"
-            role="tab"
-            data-preview-tab="onboarding"
-            aria-controls="product-preview-surface"
-            tabIndex={preview === "onboarding" ? 0 : -1}
-            aria-selected={preview === "onboarding"}
-            className={preview === "onboarding" ? "is-active" : undefined}
-            onKeyDown={(event) => movePreviewTab(event, "onboarding")}
-            onClick={() => selectPreview("onboarding")}
-          >
-            Onboarding
-          </button>
         </div>
 
         <button ref={closeRef} className="product-preview-close" type="button" aria-label="Close preview" onClick={onClose}>
@@ -147,71 +90,11 @@ export function ProductPreview({
         </button>
       </header>
 
-      <div id="product-preview-surface" className="product-preview-stage" role="tabpanel">
-        {preview === "installer" ? (
-          <InstallerPreview />
-        ) : (
-          <div className="onboarding-preview-wrap">
-            <div className="onboarding-window">
-              <NativeWindowBar title="Koi" />
-              <div className="onboarding-content">
-                <div className="onboarding-copy">
-                  <p className="onboarding-eyebrow">{step.label}</p>
-                  <h1 ref={onboardingHeadingRef} tabIndex={-1}>{step.title}</h1>
-                  <p>{step.body}</p>
-                </div>
-
-                <div className="onboarding-visual" aria-hidden="true">
-                  <OnboardingVisual step={onboardingStep} />
-                </div>
-
-                <div className="onboarding-footer">
-                  <div className="onboarding-progress" aria-label={`Step ${onboardingStep + 1} of ${onboardingSteps.length}`}>
-                    {onboardingSteps.map((item, index) => (
-                      <button
-                        key={item.label}
-                        type="button"
-                        className={index === onboardingStep ? "is-current" : undefined}
-                        aria-label={`Go to ${item.label}`}
-                        aria-current={index === onboardingStep ? "step" : undefined}
-                        onClick={() => goToOnboardingStep(index)}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="onboarding-actions">
-                    {onboardingStep > 0 && (
-                      <button type="button" className="onboarding-secondary" onClick={() => goToOnboardingStep(onboardingStep - 1)}>
-                        <ArrowLeft size={14} strokeWidth={1.8} aria-hidden="true" />
-                        Back
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="onboarding-primary"
-                      onClick={() => {
-                        if (onboardingStep === onboardingSteps.length - 1) onClose();
-                        else goToOnboardingStep(onboardingStep + 1);
-                      }}
-                    >
-                      {onboardingStep === onboardingSteps.length - 1 ? "Open Koi" : "Next"}
-                      {onboardingStep === onboardingSteps.length - 1
-                        ? <Check size={14} strokeWidth={1.8} aria-hidden="true" />
-                        : <ArrowRight size={14} strokeWidth={1.8} aria-hidden="true" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      <div id="product-preview-surface" className="product-preview-stage">
+        <InstallerPreview />
       </div>
 
-      <p className="product-preview-note">
-        {preview === "installer"
-          ? "This artwork is now connected to the release DMG."
-          : "Shown once on first launch. You can reopen it from Settings anytime."}
-      </p>
+      <p className="product-preview-note">This artwork is connected to the release DMG.</p>
     </section>
   );
 }
@@ -249,7 +132,7 @@ function NativeWindowBar({ title }: { title: string }) {
   );
 }
 
-function OnboardingVisual({ step }: { step: number }) {
+export function OnboardingVisual({ step }: { step: number }) {
   return (
     <div className={`onboarding-product-scene is-step-${step}`}>
       <div className="onboarding-library-window">

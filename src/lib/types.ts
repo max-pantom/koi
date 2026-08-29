@@ -23,6 +23,7 @@ export type MediaItem = {
   dominantColors: string[];
   colorNames: string[];
   missing: boolean;
+  colorsState?: number;
   captureType?: CaptureType;
   sourceUrl?: string;
   sourceFinalUrl?: string;
@@ -44,5 +45,4 @@ export type LibraryState = {
 };
 
 export type ViewMode = "grid" | "focus";
-export type SearchMode = "normal" | "smart";
 export type GridLayout = "packed" | "aligned";

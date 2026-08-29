@@ -41,7 +41,7 @@ pub fn sync_folder_media(
     let existing = {
         let mut stmt = tx
             .prepare(
-                "select id, path, name, tags, dominant_colors, color_names
+                "select id, path, name, tags, dominant_colors, color_names, colors_state
                  from media where folder_id = ?1",
             )
             .map_err(|error| error.to_string())?;
@@ -54,6 +54,7 @@ pub fn sync_folder_media(
                     tags: row.get(3)?,
                     dominant_colors: row.get(4)?,
                     color_names: row.get(5)?,
+                    colors_state: row.get(6)?,
                 })
             })
             .map_err(|error| error.to_string())?
@@ -79,12 +80,13 @@ pub fn sync_folder_media(
                 let first = matches.next()?;
                 matches.next().is_none().then_some(first)
             });
-        let (tags, dominant_colors, color_names) = existing_index
+        let (tags, dominant_colors, color_names, colors_state) = existing_index
             .map(|candidate| {
                 (
                     candidate.tags.clone(),
                     candidate.dominant_colors.clone(),
                     candidate.color_names.clone(),
+                    candidate.colors_state,
                 )
             })
             .unwrap_or_else(|| {
@@ -92,10 +94,11 @@ pub fn sync_folder_media(
                     serialize_tags(&item.tags),
                     serialize_tags(&item.dominant_colors),
                     serialize_tags(&item.color_names),
+                    item.colors_state as i64,
                 )
             });
 
-        upsert_media(&tx, item, tags, dominant_colors, color_names)?;
+        upsert_media(&tx, item, tags, dominant_colors, color_names, colors_state)?;
     }
 
     for candidate in existing {
@@ -127,12 +130,65 @@ pub fn save_media_index(
 ) -> Result<(), String> {
     let conn = connect(app)?;
     conn.execute(
-        "update media set dominant_colors = ?1, color_names = ?2 where id = ?3",
+        "update media set dominant_colors = ?1, color_names = ?2, colors_state = 1 where id = ?3",
         params![
             serialize_tags(dominant_colors),
             serialize_tags(color_names),
             media_id
         ],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+pub fn set_color_state(app: &AppHandle, media_id: &str, state: u8) -> Result<(), String> {
+    let conn = connect(app)?;
+    let sql = if state == 2 {
+        "update media set colors_state = ?1, dominant_colors = '[]', color_names = '[]' where id = ?2"
+    } else {
+        "update media set colors_state = ?1 where id = ?2"
+    };
+    conn.execute(sql, params![state, media_id])
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Clear every palette so the background indexer rebuilds them with the
+/// current extractor.
+pub fn reset_color_index(app: &AppHandle) -> Result<(), String> {
+    let conn = connect(app)?;
+    conn.execute_batch(
+        "update media set dominant_colors = '[]', color_names = '[]', colors_state = 0;",
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+pub fn get_setting(app: &AppHandle, key: &str) -> Result<Option<String>, String> {
+    let conn = connect(app)?;
+    let value = conn
+        .query_row(
+            "select value from settings where key = ?1",
+            params![key],
+            |row| row.get::<_, String>(0),
+        )
+        .map(Some)
+        .or_else(|error| {
+            if matches!(error, rusqlite::Error::QueryReturnedNoRows) {
+                Ok(None)
+            } else {
+                Err(error.to_string())
+            }
+        })?;
+    Ok(value)
+}
+
+pub fn set_setting(app: &AppHandle, key: &str, value: &str) -> Result<(), String> {
+    let conn = connect(app)?;
+    conn.execute(
+        "insert into settings (key, value) values (?1, ?2)
+         on conflict(key) do update set value = excluded.value",
+        params![key, value],
     )
     .map_err(|error| error.to_string())?;
     Ok(())
@@ -297,6 +353,16 @@ fn migrate(conn: &Connection) -> Result<(), String> {
     add_column(conn, "media", "source_byline", "text")?;
     add_column(conn, "media", "source_content_markdown", "text")?;
     add_column(conn, "media", "captured_at", "text")?;
+    add_column(conn, "media", "colors_state", "integer not null default 0")?;
+    conn.execute_batch(
+        "
+        create table if not exists settings (
+            key text primary key,
+            value text not null
+        );
+        ",
+    )
+    .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -336,7 +402,7 @@ fn read_folders(conn: &Connection) -> Result<Vec<Folder>, String> {
 fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
     let mut stmt = conn
         .prepare(
-            "select id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
+            "select id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names, colors_state,
              capture_type, source_url, source_final_url, source_page_url, source_canonical_url, source_link_url,
              source_title, source_page_title, source_site_name, source_description, source_byline, source_content_markdown, captured_at
             from media
@@ -363,20 +429,21 @@ fn read_items(conn: &Connection) -> Result<Vec<MediaItem>, String> {
                 tags: deserialize_tags(&tags),
                 dominant_colors: deserialize_tags(&dominant_colors),
                 color_names: deserialize_tags(&color_names),
+                colors_state: row.get::<_, i64>(13)?.clamp(0, 255) as u8,
                 missing: !Path::new(&path).is_file(),
-                capture_type: row.get(13)?,
-                source_url: row.get(14)?,
-                source_final_url: row.get(15)?,
-                source_page_url: row.get(16)?,
-                source_canonical_url: row.get(17)?,
-                source_link_url: row.get(18)?,
-                source_title: row.get(19)?,
-                source_page_title: row.get(20)?,
-                source_site_name: row.get(21)?,
-                source_description: row.get(22)?,
-                source_byline: row.get(23)?,
-                source_content_markdown: row.get(24)?,
-                captured_at: row.get(25)?,
+                capture_type: row.get(14)?,
+                source_url: row.get(15)?,
+                source_final_url: row.get(16)?,
+                source_page_url: row.get(17)?,
+                source_canonical_url: row.get(18)?,
+                source_link_url: row.get(19)?,
+                source_title: row.get(20)?,
+                source_page_title: row.get(21)?,
+                source_site_name: row.get(22)?,
+                source_description: row.get(23)?,
+                source_byline: row.get(24)?,
+                source_content_markdown: row.get(25)?,
+                captured_at: row.get(26)?,
             })
         })
         .map_err(|error| error.to_string())?;
@@ -398,6 +465,7 @@ struct ExistingMedia {
     tags: String,
     dominant_colors: String,
     color_names: String,
+    colors_state: i64,
 }
 
 fn upsert_media(
@@ -406,13 +474,14 @@ fn upsert_media(
     tags: String,
     dominant_colors: String,
     color_names: String,
+    colors_state: i64,
 ) -> Result<(), String> {
     tx.execute(
         "insert into media
-        (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names,
+        (id, folder_id, path, name, extension, kind, width, height, created_at, modified_at, tags, dominant_colors, color_names, colors_state,
          capture_type, source_url, source_final_url, source_page_url, source_canonical_url, source_link_url,
          source_title, source_page_title, source_site_name, source_description, source_byline, source_content_markdown, captured_at)
-        values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)
+        values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)
         on conflict do update set
           id = excluded.id,
           folder_id = excluded.folder_id,
@@ -436,7 +505,25 @@ fn upsert_media(
           source_description = excluded.source_description,
           source_byline = excluded.source_byline,
           source_content_markdown = excluded.source_content_markdown,
-          captured_at = excluded.captured_at",
+          captured_at = excluded.captured_at,
+          dominant_colors = case
+            when media.modified_at is not null
+             and excluded.modified_at is not null
+             and media.modified_at <> excluded.modified_at then '[]'
+            else media.dominant_colors
+          end,
+          color_names = case
+            when media.modified_at is not null
+             and excluded.modified_at is not null
+             and media.modified_at <> excluded.modified_at then '[]'
+            else media.color_names
+          end,
+          colors_state = case
+            when media.modified_at is not null
+             and excluded.modified_at is not null
+             and media.modified_at <> excluded.modified_at then 0
+            else media.colors_state
+          end",
         params![
             item.id,
             item.folder_id,
@@ -451,6 +538,7 @@ fn upsert_media(
             tags,
             dominant_colors,
             color_names,
+            colors_state,
             item.capture_type,
             item.source_url,
             item.source_final_url,

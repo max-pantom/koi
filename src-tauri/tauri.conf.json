@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build && node scripts/place-sidecar.mjs",
     "frontendDist": "../dist"
   },
   "app": {
@@ -26,6 +26,25 @@
         },
         "backgroundColor": "#ffffff",
         "visible": true
+      },
+      {
+        "label": "onboarding",
+        "url": "index.html?surface=onboarding",
+        "title": "Welcome to Koi",
+        "width": 960,
+        "height": 600,
+        "minWidth": 760,
+        "minHeight": 500,
+        "center": true,
+        "resizable": true,
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 22
+        },
+        "backgroundColor": "#232321",
+        "visible": false
       }
     ],
     "security": {
@@ -40,6 +59,7 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": ["dmg"],
+    "externalBin": ["binaries/koi-mcp"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -34,7 +34,6 @@ export function MediaGrid({
   onOpen,
   onContextMenu,
   onMeasureBatch,
-  onIndex,
   gridColumns,
   gridLayout,
   showImageTooltips,
@@ -51,7 +50,6 @@ export function MediaGrid({
   onOpen: (index: number) => void;
   onContextMenu: (event: MouseEvent, index: number) => void;
   onMeasureBatch: (measurements: MediaMeasurement[]) => void;
-  onIndex: (mediaId: string, dominantColors: string[], colorNames: string[]) => void;
   gridColumns: number;
   gridLayout: GridLayout;
   showImageTooltips: boolean;
@@ -210,7 +208,6 @@ export function MediaGrid({
             onActivate={activateTile}
             onContextMenu={openTileMenu}
             onMeasure={queueMeasurement}
-            onIndex={onIndex}
           />
         ))}
       </div>

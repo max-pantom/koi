@@ -2,14 +2,31 @@ use crate::{
     db,
     scanner::{self, Folder, LibraryState, MediaItem},
 };
-use std::{fs, io::Cursor, path::PathBuf};
+use regex::Regex;
+use reqwest::blocking::Client;
+use std::{
+    fs,
+    io::{Cursor, Read},
+    path::PathBuf,
+    time::Duration,
+};
 use tauri::{AppHandle, Emitter, Manager};
+use url::Url;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClipboardImport {
     kind: String,
     label: String,
+}
+
+struct PagePreview {
+    final_url: String,
+    canonical_url: Option<String>,
+    title: Option<String>,
+    site_name: Option<String>,
+    description: Option<String>,
+    image: Option<image::DynamicImage>,
 }
 
 #[tauri::command]
@@ -106,9 +123,42 @@ pub fn extract_media_colors(
 ) -> Result<scanner::ColorIndex, String> {
     let item = db::media_by_id(&app, &media_id)?
         .ok_or_else(|| "That image is no longer in Koi.".to_string())?;
-    let index = scanner::extract_color_index(&PathBuf::from(item.path))?;
-    db::save_media_index(&app, &media_id, &index.dominant_colors, &index.color_names)?;
-    Ok(index)
+    match scanner::extract_color_index(&PathBuf::from(item.path)) {
+        Ok(index) => {
+            db::save_media_index(&app, &media_id, &index.dominant_colors, &index.color_names)?;
+            Ok(index)
+        }
+        Err(error) => {
+            // Undecodable formats are negatively cached so the background
+            // indexer never spins on them again.
+            if error.unsupported {
+                let _ = db::set_color_state(&app, &media_id, 2);
+            }
+            Err(error.message)
+        }
+    }
+}
+
+#[tauri::command]
+pub fn reset_color_index(app: AppHandle) -> Result<(), String> {
+    db::reset_color_index(&app)?;
+    let _ = app.emit("library-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn mcp_get_status(app: AppHandle) -> Result<crate::mcp::McpStatus, String> {
+    crate::mcp::status(&app)
+}
+
+#[tauri::command]
+pub fn mcp_set_enabled(app: AppHandle, enabled: bool) -> Result<crate::mcp::McpStatus, String> {
+    crate::mcp::set_enabled(app, enabled)
+}
+
+#[tauri::command]
+pub fn mcp_regenerate_token(app: AppHandle) -> Result<crate::mcp::McpStatus, String> {
+    crate::mcp::regenerate_token(app)
 }
 
 #[tauri::command]
@@ -233,34 +283,62 @@ pub fn import_clipboard(app: AppHandle) -> Result<ClipboardImport, String> {
         if !url.starts_with("https://") && !url.starts_with("http://") {
             return Err("Copy an image or website link, then press Paste again.".into());
         }
-        let host = url
-            .split_once("://")
-            .map(|(_, rest)| rest.split('/').next().unwrap_or(rest))
-            .unwrap_or(url)
+        let parsed_url = Url::parse(url)
+            .map_err(|_| "Copy a valid website link, then press Paste again.".to_string())?;
+        let host = parsed_url
+            .host_str()
+            .unwrap_or("Saved page")
             .trim_start_matches("www.");
-        let filename = format!("clipboard-link-{stamp}.png");
+        let preview = fetch_page_preview(url).ok();
+        let has_image = preview
+            .as_ref()
+            .and_then(|value| value.image.as_ref())
+            .is_some();
+        let filename = if has_image {
+            format!("clipboard-page-{stamp}.png")
+        } else {
+            format!("clipboard-link-{stamp}.png")
+        };
         let path = folder_path.join(&filename);
-        let placeholder = image::RgbaImage::from_fn(1200, 675, |x, y| {
-            let light = 240_u8.saturating_sub(((x + y) % 24) as u8);
-            image::Rgba([light, light, light.saturating_sub(3), 255])
-        });
-        placeholder
-            .save_with_format(&path, image::ImageFormat::Png)
-            .map_err(|error| format!("Could not save the clipboard link: {error}"))?;
+        if let Some(source) = preview.as_ref().and_then(|value| value.image.as_ref()) {
+            source.save_with_format(&path, image::ImageFormat::Png)
+        } else {
+            let placeholder = image::RgbaImage::from_fn(1200, 675, |x, y| {
+                let light = 240_u8.saturating_sub(((x + y) % 24) as u8);
+                image::Rgba([light, light, light.saturating_sub(3), 255])
+            });
+            placeholder.save_with_format(&path, image::ImageFormat::Png)
+        }
+        .map_err(|error| format!("Could not save the clipboard link: {error}"))?;
+        let final_url = preview
+            .as_ref()
+            .map(|value| value.final_url.as_str())
+            .unwrap_or(url);
+        let title = preview
+            .as_ref()
+            .and_then(|value| value.title.as_deref())
+            .unwrap_or(host);
         (
             filename.clone(),
             serde_json::json!({
                 "schemaVersion": 2,
                 "captureType": "link",
                 "sourceUrl": url,
-                "sourceFinalUrl": url,
-                "sourcePageUrl": url,
-                "sourceTitle": host,
-                "sourceSiteName": host,
+                "sourceFinalUrl": final_url,
+                "sourcePageUrl": final_url,
+                "sourceCanonicalUrl": preview.as_ref().and_then(|value| value.canonical_url.as_deref()),
+                "sourceTitle": title,
+                "sourcePageTitle": title,
+                "sourceSiteName": preview.as_ref().and_then(|value| value.site_name.as_deref()).unwrap_or(host),
+                "sourceDescription": preview.as_ref().and_then(|value| value.description.as_deref()),
                 "imageFilename": filename,
             }),
             "link".to_string(),
-            format!("{host} saved"),
+            if has_image {
+                format!("{host} preview saved")
+            } else {
+                format!("{host} saved")
+            },
         )
     };
 
@@ -269,6 +347,195 @@ pub fn import_clipboard(app: AppHandle) -> Result<ClipboardImport, String> {
     db::sync_folder_media(&app, &folder.id, &items)?;
     let _ = app.emit("library-changed", ());
     Ok(ClipboardImport { kind, label })
+}
+
+#[tauri::command]
+pub fn refresh_link_preview(app: AppHandle, media_id: String) -> Result<bool, String> {
+    let item = db::media_by_id(&app, &media_id)?
+        .ok_or_else(|| "That saved page is no longer in Koi.".to_string())?;
+    if item.capture_type.as_deref() != Some("link") || !item.name.starts_with("clipboard-link-") {
+        return Ok(false);
+    }
+    let source_url = item
+        .source_page_url
+        .as_deref()
+        .or(item.source_url.as_deref())
+        .ok_or_else(|| "That saved page has no source link.".to_string())?;
+    let preview = fetch_page_preview(source_url)?;
+    if preview.image.is_none() && preview.title.is_none() && preview.description.is_none() {
+        return Ok(false);
+    }
+    if let Some(image) = &preview.image {
+        image
+            .save_with_format(&item.path, image::ImageFormat::Png)
+            .map_err(|error| format!("Could not update the saved page preview: {error}"))?;
+    }
+    let folder = db::folder_by_id(&app, &item.folder_id)?
+        .ok_or_else(|| "That saved page folder is no longer in Koi.".to_string())?;
+    let host = Url::parse(&preview.final_url)
+        .ok()
+        .and_then(|url| url.host_str().map(String::from));
+    let title = preview
+        .title
+        .as_deref()
+        .or(item.source_title.as_deref())
+        .or(host.as_deref());
+    scanner::upsert_capture_metadata(
+        &PathBuf::from(&folder.path),
+        &item.name,
+        serde_json::json!({
+            "schemaVersion": 2,
+            "captureType": "link",
+            "sourceUrl": source_url,
+            "sourceFinalUrl": preview.final_url,
+            "sourcePageUrl": preview.canonical_url.as_deref().unwrap_or(source_url),
+            "sourceCanonicalUrl": preview.canonical_url,
+            "sourceTitle": title,
+            "sourcePageTitle": title,
+            "sourceSiteName": preview.site_name.or(host),
+            "sourceDescription": preview.description,
+            "imageFilename": item.name,
+        }),
+    )?;
+    let items = scanner::scan_folder_path(&folder.path, &folder.id)?;
+    db::sync_folder_media(&app, &folder.id, &items)?;
+    let _ = app.emit("library-changed", ());
+    Ok(true)
+}
+
+fn fetch_page_preview(input: &str) -> Result<PagePreview, String> {
+    const MAX_HTML_BYTES: u64 = 2 * 1024 * 1024;
+    const MAX_IMAGE_BYTES: u64 = 16 * 1024 * 1024;
+    let client = Client::builder()
+        .connect_timeout(Duration::from_secs(4))
+        .timeout(Duration::from_secs(10))
+        .user_agent("Koi/0.2 link preview")
+        .redirect(reqwest::redirect::Policy::limited(6))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let response = client
+        .get(input)
+        .send()
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .map_err(|error| format!("Could not load the page preview: {error}"))?;
+    let final_url = response.url().clone();
+    let mut html_bytes = Vec::new();
+    response
+        .take(MAX_HTML_BYTES)
+        .read_to_end(&mut html_bytes)
+        .map_err(|error| error.to_string())?;
+    let html = String::from_utf8_lossy(&html_bytes);
+
+    let title = meta_value(&html, &["og:title", "twitter:title"]).or_else(|| html_title(&html));
+    let site_name = meta_value(&html, &["og:site_name", "application-name"]);
+    let description = meta_value(
+        &html,
+        &["og:description", "twitter:description", "description"],
+    );
+    let canonical_url =
+        link_value(&html, "canonical").and_then(|value| resolve_url(&final_url, &value));
+    let image_url = meta_value(&html, &["og:image:secure_url", "og:image", "twitter:image"])
+        .and_then(|value| resolve_url(&final_url, &value));
+    let image = image_url.and_then(|source| {
+        let response = client.get(source).send().ok()?.error_for_status().ok()?;
+        if response
+            .content_length()
+            .is_some_and(|length| length > MAX_IMAGE_BYTES)
+        {
+            return None;
+        }
+        let mut bytes = Vec::new();
+        response
+            .take(MAX_IMAGE_BYTES)
+            .read_to_end(&mut bytes)
+            .ok()?;
+        image::load_from_memory(&bytes).ok()
+    });
+
+    Ok(PagePreview {
+        final_url: final_url.to_string(),
+        canonical_url,
+        title,
+        site_name,
+        description,
+        image,
+    })
+}
+
+fn meta_value(html: &str, names: &[&str]) -> Option<String> {
+    let tag_pattern = Regex::new(r"(?is)<meta\s+[^>]*>").ok()?;
+    let attribute_pattern =
+        Regex::new(r#"(?i)([a-z][a-z0-9:_-]*)\s*=\s*[\"']([^\"']*)[\"']"#).ok()?;
+    for tag in tag_pattern.find_iter(html) {
+        let attributes = attribute_pattern
+            .captures_iter(tag.as_str())
+            .filter_map(|capture| {
+                Some((
+                    capture.get(1)?.as_str().to_ascii_lowercase(),
+                    capture.get(2)?.as_str().to_string(),
+                ))
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        let Some(key) = attributes
+            .get("property")
+            .or_else(|| attributes.get("name"))
+        else {
+            continue;
+        };
+        if names.iter().any(|name| key.eq_ignore_ascii_case(name)) {
+            return attributes
+                .get("content")
+                .map(|value| decode_html_text(value));
+        }
+    }
+    None
+}
+
+fn html_title(html: &str) -> Option<String> {
+    let pattern = Regex::new(r"(?is)<title[^>]*>(.*?)</title>").ok()?;
+    pattern
+        .captures(html)
+        .and_then(|capture| capture.get(1))
+        .map(|value| decode_html_text(value.as_str()))
+}
+
+fn link_value(html: &str, relation: &str) -> Option<String> {
+    let tag_pattern = Regex::new(r"(?is)<link\s+[^>]*>").ok()?;
+    let attribute_pattern =
+        Regex::new(r#"(?i)([a-z][a-z0-9:_-]*)\s*=\s*[\"']([^\"']*)[\"']"#).ok()?;
+    for tag in tag_pattern.find_iter(html) {
+        let attributes = attribute_pattern
+            .captures_iter(tag.as_str())
+            .filter_map(|capture| {
+                Some((
+                    capture.get(1)?.as_str().to_ascii_lowercase(),
+                    capture.get(2)?.as_str().to_string(),
+                ))
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        if attributes.get("rel").is_some_and(|value| {
+            value
+                .split_whitespace()
+                .any(|part| part.eq_ignore_ascii_case(relation))
+        }) {
+            return attributes.get("href").cloned();
+        }
+    }
+    None
+}
+
+fn resolve_url(base: &Url, value: &str) -> Option<String> {
+    base.join(value.trim()).ok().map(|url| url.to_string())
+}
+
+fn decode_html_text(value: &str) -> String {
+    value
+        .trim()
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
 }
 
 #[cfg(target_os = "macos")]
@@ -304,4 +571,38 @@ fn move_to_trash(path: &std::path::Path) -> Result<(), String> {
 #[cfg(not(target_os = "macos"))]
 fn move_to_trash(_path: &std::path::Path) -> Result<(), String> {
     Err("Moving files to Trash is currently available on macOS.".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{html_title, link_value, meta_value, resolve_url};
+    use url::Url;
+
+    #[test]
+    fn reads_open_graph_metadata_after_unrelated_meta_tags() {
+        let html = r#"
+          <meta charset="utf-8">
+          <meta name="description" content="A quiet pond &amp; reeds">
+          <meta property="og:title" content="Pond studies">
+          <meta property="og:image" content="/images/pond.jpg">
+          <title>Fallback title</title>
+        "#;
+        assert_eq!(meta_value(html, &["og:title"]), Some("Pond studies".into()));
+        assert_eq!(
+            meta_value(html, &["description"]),
+            Some("A quiet pond & reeds".into())
+        );
+        assert_eq!(html_title(html), Some("Fallback title".into()));
+    }
+
+    #[test]
+    fn resolves_relative_preview_and_canonical_urls() {
+        let html = r#"<link rel="alternate canonical" href="/work/pond">"#;
+        let base = Url::parse("https://example.com/gallery/page").unwrap();
+        assert_eq!(link_value(html, "canonical"), Some("/work/pond".into()));
+        assert_eq!(
+            resolve_url(&base, "/images/pond.jpg"),
+            Some("https://example.com/images/pond.jpg".into())
+        );
+    }
 }

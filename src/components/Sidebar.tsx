@@ -147,7 +147,7 @@ export function Sidebar({
               value={query}
               autoComplete="off"
               spellCheck="false"
-              placeholder="Search images…"
+              placeholder="Search colors, tags, sites…"
               aria-keyshortcuts="Meta+F"
               onFocus={() => onSearchFocusChange(true)}
               onBlur={() => onSearchFocusChange(false)}
@@ -172,7 +172,7 @@ export function Sidebar({
           {(query || isSearchOpen) && (
             <div className="sidebar-search-meta">
               <output className="sidebar-search-count" aria-live="polite">
-                {query ? `${resultCount.toLocaleString()} found` : "Search names, tags, and sources"}
+                {query ? `${resultCount.toLocaleString()} found` : "Try color:red · tag:koi · type:gif"}
               </output>
             </div>
           )}

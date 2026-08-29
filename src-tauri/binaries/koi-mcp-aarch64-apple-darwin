@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "koi-mcp placeholder — run scripts/place-sidecar.mjs to build the real bridge"

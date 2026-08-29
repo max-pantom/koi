@@ -39,6 +39,8 @@ pub struct MediaItem {
     pub tags: Vec<String>,
     pub dominant_colors: Vec<String>,
     pub color_names: Vec<String>,
+    #[serde(default)]
+    pub colors_state: u8,
     pub missing: bool,
     pub capture_type: Option<String>,
     pub source_url: Option<String>,
@@ -156,6 +158,7 @@ fn scan_dir(dir: &Path, folder_id: &str, items: &mut Vec<MediaItem>) -> Result<(
             tags: Vec::new(),
             dominant_colors: image_metadata.dominant_colors,
             color_names: image_metadata.color_names,
+            colors_state: 0,
             missing: false,
             capture_type: capture_metadata.capture_type,
             source_url: capture_metadata.source_url,
@@ -400,87 +403,369 @@ fn media_metadata(path: &Path) -> MediaMetadata {
     }
 }
 
-pub fn extract_color_index(path: &Path) -> Result<ColorIndex, String> {
+pub fn extract_color_index(path: &Path) -> Result<ColorIndex, ExtractError> {
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
+    if matches!(
+        extension.as_str(),
+        "svg" | "heic" | "heif" | "avif" | "aviff"
+    ) {
+        return Err(ExtractError::unsupported(
+            "This format is rendered by the webview only, so Koi cannot sample its colors.",
+        ));
+    }
+
     let image = image::ImageReader::open(path)
-        .map_err(|error| format!("Could not open the image: {error}"))?
+        .map_err(|error| ExtractError::failed(format!("Could not open the image: {error}")))?
         .with_guessed_format()
-        .map_err(|error| format!("Could not read the image format: {error}"))?
+        .map_err(|error| ExtractError::failed(format!("Could not read the image format: {error}")))?
         .decode()
-        .map_err(|error| format!("Could not decode the image: {error}"))?
-        .resize(48, 48, image::imageops::FilterType::Triangle)
+        // Decode failures never recover on retry, so they are treated as
+        // unsupported and negatively cached instead of re-attempted forever.
+        .map_err(|error| ExtractError::unsupported(format!("Could not decode the image: {error}")))?
+        .resize(
+            SAMPLE_SIZE,
+            SAMPLE_SIZE,
+            image::imageops::FilterType::Triangle,
+        )
         .to_rgba8();
-    let mut buckets = HashMap::<(u8, u8, u8), ([u64; 3], u64)>::new();
-    for pixel in image.pixels().step_by(4) {
-        if pixel[3] < 160 {
+
+    let mut chromatic = HashMap::<(usize, usize, usize), ColorCluster>::new();
+    let mut grays = HashMap::<usize, GrayCluster>::new();
+
+    for pixel in image.pixels() {
+        let [red, green, blue, alpha] = pixel.0;
+        if alpha < OPAQUE_ALPHA_MIN {
             continue;
         }
-        let key = (quantize(pixel[0]), quantize(pixel[1]), quantize(pixel[2]));
-        let bucket = buckets.entry(key).or_insert(([0, 0, 0], 0));
-        bucket.0[0] += u64::from(pixel[0]);
-        bucket.0[1] += u64::from(pixel[1]);
-        bucket.0[2] += u64::from(pixel[2]);
-        bucket.1 += 1;
+        let (red, green, blue) = (
+            f64::from(red) / 255.0,
+            f64::from(green) / 255.0,
+            f64::from(blue) / 255.0,
+        );
+        let max = red.max(green).max(blue);
+        let min = red.min(green).min(blue);
+        let delta = max - min;
+        let value = max;
+        let saturation = if max <= 0.0 { 0.0 } else { delta / max };
+
+        if saturation < ACHROMATIC_SATURATION
+            || !(DARK_VALUE_MAX..=LIGHT_VALUE_MIN).contains(&value)
+        {
+            let bin = (value * 6.0).round().clamp(0.0, 5.0) as usize;
+            let cluster = grays.entry(bin).or_default();
+            cluster.count += 1;
+            cluster.sum_value += value;
+            cluster.sum_r += red;
+            cluster.sum_g += green;
+            cluster.sum_b += blue;
+            continue;
+        }
+
+        let hue = rgb_hue(red, green, blue, max, delta);
+        let hue_bin = ((hue / 360.0 * HUE_BINS as f64).round() as usize) % HUE_BINS;
+        let sat_bin = if saturation < 0.30 {
+            0
+        } else if saturation < 0.65 {
+            1
+        } else {
+            2
+        };
+        let val_bin = ((value * VAL_BINS as f64).floor() as usize).clamp(0, VAL_BINS - 1);
+        let cluster = chromatic.entry((hue_bin, sat_bin, val_bin)).or_default();
+        cluster.count += 1;
+        let weight = CHROMA_WEIGHT_FLOOR + saturation;
+        let radians = hue.to_radians();
+        cluster.sum_sin += radians.sin() * weight;
+        cluster.sum_cos += radians.cos() * weight;
+        cluster.sum_sat += saturation * weight;
+        cluster.sum_value += value * weight;
+        cluster.sum_weight += weight;
+        cluster.sum_r += red * weight;
+        cluster.sum_g += green * weight;
+        cluster.sum_b += blue * weight;
     }
-    let mut buckets = buckets.into_values().collect::<Vec<_>>();
-    buckets.sort_by(|left, right| right.1.cmp(&left.1));
-    let colors = buckets
-        .into_iter()
-        .take(5)
-        .map(|(sum, count)| {
-            [
-                (sum[0] / count) as u8,
-                (sum[1] / count) as u8,
-                (sum[2] / count) as u8,
-            ]
-        })
-        .collect::<Vec<_>>();
-    if colors.is_empty() {
-        return Err("This image has no visible colors to sample.".into());
+
+    if chromatic.is_empty() && grays.is_empty() {
+        return Err(ExtractError::unsupported(
+            "This image has no opaque pixels to sample.",
+        ));
     }
-    let dominant_colors = colors
-        .iter()
-        .map(|rgb| format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2]))
-        .collect();
-    let mut color_names = Vec::new();
-    for rgb in colors {
-        let name = nearest_color_name(rgb).to_string();
-        if !color_names.contains(&name) {
-            color_names.push(name);
+
+    let mut clusters = chromatic.into_values().collect::<Vec<_>>();
+    clusters.sort_by(|left, right| {
+        cluster_score(right)
+            .partial_cmp(&cluster_score(left))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut picked: Vec<ColorCluster> = Vec::new();
+    for cluster in clusters {
+        if picked.len() >= MAX_SWATCHES {
+            break;
+        }
+        let hue = cluster.mean_hue();
+        if picked
+            .iter()
+            .all(|other| hue_distance(hue, other.mean_hue()) >= MIN_HUE_SEPARATION)
+        {
+            picked.push(cluster);
         }
     }
+
+    // Quiet or monochrome images rarely yield three distinct hue clusters;
+    // round the palette out with the strongest neutral tones.
+    let mut neutrals = grays.into_values().collect::<Vec<_>>();
+    neutrals.sort_by(|left, right| right.count.cmp(&left.count));
+    let neutrals = neutrals.into_iter().take(MAX_SWATCHES - picked.len());
+
+    let mut swatches: Vec<([u8; 3], Option<f64>, f64, f64)> = picked
+        .iter()
+        .map(|cluster| {
+            (
+                cluster.representative(),
+                Some(cluster.mean_hue()),
+                cluster.mean_sat(),
+                cluster.mean_value(),
+            )
+        })
+        .collect();
+    for neutral in neutrals {
+        swatches.push((
+            [
+                (neutral.sum_r / neutral.count as f64 * 255.0)
+                    .round()
+                    .clamp(0.0, 255.0) as u8,
+                (neutral.sum_g / neutral.count as f64 * 255.0)
+                    .round()
+                    .clamp(0.0, 255.0) as u8,
+                (neutral.sum_b / neutral.count as f64 * 255.0)
+                    .round()
+                    .clamp(0.0, 255.0) as u8,
+            ],
+            None,
+            0.0,
+            neutral.mean_value(),
+        ));
+    }
+
+    let mut dominant_colors = Vec::new();
+    for (rgb, _, _, _) in &swatches {
+        let hex = format!(
+            "#{rgb0:02x}{rgb1:02x}{rgb2:02x}",
+            rgb0 = rgb[0],
+            rgb1 = rgb[1],
+            rgb2 = rgb[2]
+        );
+        if !dominant_colors.contains(&hex) {
+            dominant_colors.push(hex);
+        }
+    }
+
+    let mut color_names: Vec<String> = Vec::new();
+    for (_, hue, saturation, value) in &swatches {
+        let name = color_name(*hue, *saturation, *value);
+        if !color_names.contains(&name.to_string()) {
+            color_names.push(name.to_string());
+        }
+    }
+
     Ok(ColorIndex {
         dominant_colors,
         color_names,
     })
 }
 
-fn quantize(value: u8) -> u8 {
-    ((u16::from(value) + 16) / 32 * 32).min(255) as u8
+#[derive(Debug)]
+pub struct ExtractError {
+    pub unsupported: bool,
+    pub message: String,
 }
 
-fn nearest_color_name(rgb: [u8; 3]) -> &'static str {
-    const COLORS: &[(&str, [i32; 3])] = &[
-        ("black", [18, 18, 18]),
-        ("white", [242, 242, 238]),
-        ("gray", [128, 128, 128]),
-        ("red", [216, 48, 42]),
-        ("orange", [235, 127, 38]),
-        ("yellow", [232, 205, 48]),
-        ("green", [48, 155, 74]),
-        ("blue", [50, 100, 210]),
-        ("purple", [125, 75, 180]),
-        ("pink", [226, 94, 154]),
-        ("brown", [126, 82, 48]),
-    ];
-    COLORS
-        .iter()
-        .min_by_key(|(_, candidate)| {
-            (i32::from(rgb[0]) - candidate[0]).pow(2)
-                + (i32::from(rgb[1]) - candidate[1]).pow(2)
-                + (i32::from(rgb[2]) - candidate[2]).pow(2)
-        })
-        .map(|(name, _)| *name)
-        .unwrap_or("gray")
+impl ExtractError {
+    fn unsupported(message: impl Into<String>) -> Self {
+        Self {
+            unsupported: true,
+            message: message.into(),
+        }
+    }
+
+    fn failed(message: impl Into<String>) -> Self {
+        Self {
+            unsupported: false,
+            message: message.into(),
+        }
+    }
+}
+
+const SAMPLE_SIZE: u32 = 64;
+const MAX_SWATCHES: usize = 5;
+const HUE_BINS: usize = 18;
+const VAL_BINS: usize = 4;
+const OPAQUE_ALPHA_MIN: u8 = 160;
+const ACHROMATIC_SATURATION: f64 = 0.14;
+const DARK_VALUE_MAX: f64 = 0.07;
+const LIGHT_VALUE_MIN: f64 = 0.97;
+const CHROMA_WEIGHT_FLOOR: f64 = 0.2;
+const MIN_HUE_SEPARATION: f64 = 24.0;
+
+#[derive(Default)]
+struct ColorCluster {
+    count: u64,
+    sum_sin: f64,
+    sum_cos: f64,
+    sum_sat: f64,
+    sum_value: f64,
+    sum_weight: f64,
+    sum_r: f64,
+    sum_g: f64,
+    sum_b: f64,
+}
+
+impl ColorCluster {
+    fn mean_hue(&self) -> f64 {
+        if self.sum_sin == 0.0 && self.sum_cos == 0.0 {
+            return 0.0;
+        }
+        let hue = self.sum_sin.atan2(self.sum_cos).to_degrees();
+        if hue < 0.0 {
+            hue + 360.0
+        } else {
+            hue
+        }
+    }
+
+    fn mean_sat(&self) -> f64 {
+        if self.sum_weight <= 0.0 {
+            0.0
+        } else {
+            self.sum_sat / self.sum_weight
+        }
+    }
+
+    fn mean_value(&self) -> f64 {
+        if self.sum_weight <= 0.0 {
+            0.0
+        } else {
+            self.sum_value / self.sum_weight
+        }
+    }
+
+    fn representative(&self) -> [u8; 3] {
+        if self.sum_weight <= 0.0 {
+            return [128, 128, 128];
+        }
+        [
+            (self.sum_r / self.sum_weight * 255.0)
+                .round()
+                .clamp(0.0, 255.0) as u8,
+            (self.sum_g / self.sum_weight * 255.0)
+                .round()
+                .clamp(0.0, 255.0) as u8,
+            (self.sum_b / self.sum_weight * 255.0)
+                .round()
+                .clamp(0.0, 255.0) as u8,
+        ]
+    }
+}
+
+fn cluster_score(cluster: &ColorCluster) -> f64 {
+    cluster.count as f64 * (0.22 + cluster.mean_sat())
+}
+
+#[derive(Default)]
+struct GrayCluster {
+    count: u64,
+    sum_value: f64,
+    sum_r: f64,
+    sum_g: f64,
+    sum_b: f64,
+}
+
+impl GrayCluster {
+    fn mean_value(&self) -> f64 {
+        if self.count == 0 {
+            0.0
+        } else {
+            self.sum_value / self.count as f64
+        }
+    }
+}
+
+fn rgb_hue(red: f64, green: f64, blue: f64, max: f64, delta: f64) -> f64 {
+    if delta <= 0.0 {
+        return 0.0;
+    }
+    let sector = if (max - red).abs() < f64::EPSILON {
+        (green - blue) / delta
+    } else if (max - green).abs() < f64::EPSILON {
+        (blue - red) / delta + 2.0
+    } else {
+        (red - green) / delta + 4.0
+    };
+    let hue = sector * 60.0;
+    if hue < 0.0 {
+        hue + 360.0
+    } else {
+        hue % 360.0
+    }
+}
+
+fn hue_distance(left: f64, right: f64) -> f64 {
+    let difference = (left - right).abs() % 360.0;
+    if difference > 180.0 {
+        360.0 - difference
+    } else {
+        difference
+    }
+}
+
+fn color_name(hue: Option<f64>, saturation: f64, value: f64) -> &'static str {
+    let Some(hue) = hue else {
+        return neutral_name(value);
+    };
+    if value < 0.11 {
+        return "black";
+    }
+    if !(14.0..347.0).contains(&hue) {
+        "red"
+    } else if hue < 41.0 {
+        if value <= 0.62 && saturation >= 0.20 {
+            "brown"
+        } else {
+            "orange"
+        }
+    } else if hue < 69.0 {
+        "yellow"
+    } else if hue < 159.0 {
+        "green"
+    } else if hue < 197.0 {
+        // Teal band: muted cyan-greens read as green, saturated ones as blue.
+        if saturation < 0.30 && value > 0.55 {
+            "green"
+        } else {
+            "blue"
+        }
+    } else if hue < 257.0 {
+        "blue"
+    } else if hue < 297.0 || saturation > 0.45 && value < 0.55 {
+        "purple"
+    } else {
+        "pink"
+    }
+}
+
+fn neutral_name(value: f64) -> &'static str {
+    if value < 0.16 {
+        "black"
+    } else if value > 0.93 {
+        "white"
+    } else {
+        "gray"
+    }
 }
 
 fn empty_metadata() -> MediaMetadata {
@@ -568,6 +853,62 @@ mod tests {
         let index = extract_color_index(&path).expect("palette should be extracted");
         assert_eq!(index.dominant_colors.len(), 1);
         assert_eq!(index.color_names, vec!["blue"]);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn keeps_a_vivid_accent_above_a_large_muted_background() {
+        let unique = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("time should move forward")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("koi-accent-{unique}.png"));
+        let mut image = image::RgbaImage::from_pixel(64, 64, image::Rgba([238, 240, 242, 255]));
+        for y in 20..44 {
+            for x in 20..44 {
+                image.put_pixel(x, y, image::Rgba([230, 60, 40, 255]));
+            }
+        }
+        image.save(&path).expect("test image should save");
+        let index = extract_color_index(&path).expect("palette should be extracted");
+        assert_eq!(index.color_names.first(), Some(&"red".to_string()));
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn names_monochrome_images_from_the_neutral_scale() {
+        let unique = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("time should move forward")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("koi-gray-{unique}.png"));
+        let mut image = image::RgbaImage::new(48, 48);
+        for y in 0..48_u32 {
+            for x in 0..48_u32 {
+                let value: u8 = (((x + y) * 255) / 94).clamp(0, 255) as u8;
+                image.put_pixel(x, y, image::Rgba([value, value, value, 255]));
+            }
+        }
+        image.save(&path).expect("test image should save");
+        let index = extract_color_index(&path).expect("palette should be extracted");
+        assert!(index
+            .color_names
+            .iter()
+            .all(|name| matches!(name.as_str(), "black" | "white" | "gray")));
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn reports_transparent_images_as_unsupported_instead_of_retrying_forever() {
+        let unique = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("time should move forward")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("koi-alpha-{unique}.png"));
+        let image = image::RgbaImage::from_pixel(12, 12, image::Rgba([10, 200, 90, 8]));
+        image.save(&path).expect("test image should save");
+        let error = extract_color_index(&path).expect_err("transparent images cannot be sampled");
+        assert!(error.unsupported);
         let _ = fs::remove_file(path);
     }
 }

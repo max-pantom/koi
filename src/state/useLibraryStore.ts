@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { searchMedia } from "../lib/search";
-import type { Folder, GridLayout, LibraryState, MediaItem, SearchMode, ViewMode } from "../lib/types";
+import type { Folder, GridLayout, LibraryState, MediaItem, ViewMode } from "../lib/types";
 
 type LibraryStore = {
   folders: Folder[];
@@ -10,7 +10,6 @@ type LibraryStore = {
   selectedIndex: number;
   selectedItem?: MediaItem;
   query: string;
-  searchMode: SearchMode;
   activeFolderId: string;
   gridColumns: number;
   gridLayout: GridLayout;
@@ -26,12 +25,11 @@ type LibraryStore = {
   removeItem: (mediaId: string) => Promise<boolean>;
   updateItemSize: (mediaId: string, width: number, height: number) => void;
   updateItemSizes: (measurements: Array<{ mediaId: string; width: number; height: number }>) => void;
-  saveMediaIndex: (mediaId: string, dominantColors: string[], colorNames: string[]) => Promise<void>;
   extractMediaIndex: (mediaId: string) => Promise<void>;
+  rebuildPalettes: () => Promise<void>;
   saveTags: (mediaId: string, tags: string[]) => Promise<void>;
   reconnectFolder: (folderId: string) => Promise<void>;
   setQuery: (query: string) => void;
-  setSearchMode: (mode: SearchMode) => void;
   setActiveFolderId: (folderId: string) => void;
   setGridColumns: (columns: number) => void;
   setGridLayout: (layout: GridLayout) => void;
@@ -49,7 +47,6 @@ export function useLibraryStore(): LibraryStore {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [selectedIndex, setSelectedIndexState] = useState(() => readNumber("koi.selectedIndex", 0));
   const [query, setQueryState] = useState("");
-  const [searchMode, setSearchModeState] = useState<SearchMode>("normal");
   const [activeFolderId, setActiveFolderId] = useState(() => localStorage.getItem("koi.activeFolderId") ?? "all");
   const [gridColumns, setGridColumnsState] = useState(() => clamp(readNumber("koi.gridColumns", 6), 3, 16));
   const [gridLayout, setGridLayoutState] = useState<GridLayout>(
@@ -66,8 +63,8 @@ export function useLibraryStore(): LibraryStore {
   }, [activeFolderId, items]);
   const folderNames = useMemo(() => new Map(folders.map((folder) => [folder.id, folder.name])), [folders]);
   const filteredItems = useMemo(
-    () => searchMedia(scopedItems, query, searchMode, folderNames),
-    [folderNames, query, scopedItems, searchMode],
+    () => searchMedia(scopedItems, query, folderNames),
+    [folderNames, query, scopedItems],
   );
   const selectedItem = filteredItems[Math.min(selectedIndex, Math.max(filteredItems.length - 1, 0))];
 
@@ -196,19 +193,10 @@ export function useLibraryStore(): LibraryStore {
     });
   }, []);
 
-  const saveMediaIndex = useCallback(async (mediaId: string, dominantColors: string[], colorNames: string[]) => {
-    setItems((current) => updateOne(current, mediaId, (item) => (
-      equalStrings(item.dominantColors, dominantColors) && equalStrings(item.colorNames, colorNames)
-        ? item
-        : { ...item, dominantColors, colorNames }
-    )));
-    try {
-      await invoke("save_media_index", { mediaId, dominantColors, colorNames });
-    } catch {
-      // Color indexing is best-effort and should never interrupt browsing.
-    }
-  }, []);
+  const failedColorIdsRef = useRef(new Set<string>());
 
+  // Colors are extracted exclusively by the Rust side so every platform sees
+  // identical palettes; this store only schedules and applies the results.
   const extractMediaIndex = useCallback(async (mediaId: string) => {
     try {
       const index = await invoke<{ dominantColors: string[]; colorNames: string[] }>("extract_media_colors", { mediaId });
@@ -216,11 +204,20 @@ export function useLibraryStore(): LibraryStore {
         ...item,
         dominantColors: index.dominantColors,
         colorNames: index.colorNames,
+        colorsState: 1,
       })));
     } catch {
-      // Unsupported and fully transparent images simply have no palette.
+      // A transient database or file error must not be persisted as an
+      // unsupported format. Skip it only for this indexing session; the Rust
+      // side negatively caches formats it actually cannot decode.
+      failedColorIdsRef.current.add(mediaId);
     }
   }, []);
+
+  const rebuildPalettes = useCallback(async () => {
+    await invoke("reset_color_index");
+    await loadLibrary();
+  }, [loadLibrary]);
 
   const saveTags = useCallback(async (mediaId: string, tags: string[]) => {
     setItems((current) => updateOne(current, mediaId, (item) => (
@@ -246,6 +243,44 @@ export function useLibraryStore(): LibraryStore {
     }
   }, [setLibrary]);
 
+  const itemsRef = useRef<MediaItem[]>([]);
+  itemsRef.current = items;
+  const indexingRef = useRef(false);
+  const refreshedLinkIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (indexingRef.current || isLoading) return;
+    const hasPending = items.some((item) => !item.colorsState && item.kind !== "video" && !item.missing && !failedColorIdsRef.current.has(item.id));
+    if (!hasPending) return;
+
+    indexingRef.current = true;
+    void (async () => {
+      try {
+        for (;;) {
+          const next = itemsRef.current.find((item) => !item.colorsState && item.kind !== "video" && !item.missing && !failedColorIdsRef.current.has(item.id));
+          if (!next) break;
+          await runWhenIdle();
+          await extractMediaIndex(next.id);
+        }
+      } finally {
+        indexingRef.current = false;
+      }
+    })();
+  }, [extractMediaIndex, isLoading, items]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const pending = items.find((item) => (
+      item.captureType === "link"
+      && /^clipboard-link-\d+\.(?:png|jpe?g|webp)$/i.test(item.name)
+      && !item.missing
+      && !refreshedLinkIdsRef.current.has(item.id)
+    ));
+    if (!pending) return;
+    refreshedLinkIdsRef.current.add(pending.id);
+    void runWhenIdle().then(() => invoke<boolean>("refresh_link_preview", { mediaId: pending.id })).catch(() => undefined);
+  }, [isLoading, items]);
+
   return {
     folders,
     items,
@@ -253,7 +288,6 @@ export function useLibraryStore(): LibraryStore {
     selectedIndex,
     selectedItem,
     query,
-    searchMode,
     activeFolderId,
     gridColumns,
     gridLayout,
@@ -269,17 +303,12 @@ export function useLibraryStore(): LibraryStore {
     removeItem,
     updateItemSize,
     updateItemSizes,
-    saveMediaIndex,
     extractMediaIndex,
+    rebuildPalettes,
     saveTags,
     reconnectFolder,
     setQuery: (nextQuery) => {
       setQueryState(nextQuery);
-      localStorage.setItem("koi.selectedIndex", "0");
-      setSelectedIndexState(0);
-    },
-    setSearchMode: (mode) => {
-      setSearchModeState(mode);
       localStorage.setItem("koi.selectedIndex", "0");
       setSelectedIndexState(0);
     },
@@ -348,4 +377,12 @@ function updateOne(
 
 function equalStrings(left: string[], right: string[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+async function runWhenIdle() {
+  return new Promise<void>((resolve) => {
+    const schedule = window.requestIdleCallback;
+    if (typeof schedule === "function") schedule(() => resolve(), { timeout: 800 });
+    else globalThis.setTimeout(resolve, 24);
+  });
 }

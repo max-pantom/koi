@@ -1,6 +1,7 @@
 mod capture_bridge;
 mod commands;
 mod db;
+mod mcp;
 mod menu;
 mod scanner;
 mod watcher;
@@ -23,17 +24,25 @@ fn main() {
             commands::save_tags,
             commands::save_media_index,
             commands::extract_media_colors,
+            commands::reset_color_index,
             commands::reconnect_folder,
             commands::get_library,
             commands::ensure_capture_folder,
             commands::delete_media,
             commands::copy_media_image,
-            commands::import_clipboard
+            commands::import_clipboard,
+            commands::refresh_link_preview,
+            commands::mcp_get_status,
+            commands::mcp_set_enabled,
+            commands::mcp_regenerate_token
         ])
         .setup(|app| {
             // The extension can still explain that Downloads access is needed
             // while macOS is presenting the first-run folder permission sheet.
             capture_bridge::start(app.handle().clone());
+            // The MCP listener gates every request on its persisted enable
+            // flag, so binding early keeps toggling instant.
+            mcp::start(app.handle().clone());
             if let Err(error) = commands::ensure_capture_folder(app.handle().clone()) {
                 eprintln!("Koi Capture folder unavailable: {error}");
             }

@@ -1,7 +1,6 @@
 import { isGeneratedLinkPlaceholder, mediaSrc } from "../lib/media";
-import { extractColorIndex } from "../lib/colorIndex";
 import type { MediaItem } from "../lib/types";
-import { memo, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { memo, useEffect, useState, type CSSProperties, type MouseEvent } from "react";
 import { SavedPageCard } from "./SavedPageCard";
 
 type MediaTileProps = {
@@ -13,7 +12,6 @@ type MediaTileProps = {
   onActivate: (index: number) => void;
   onContextMenu: (event: MouseEvent<HTMLButtonElement>, index: number) => void;
   onMeasure: (mediaId: string, width: number, height: number) => void;
-  onIndex: (mediaId: string, dominantColors: string[], colorNames: string[]) => void;
 };
 
 export const MediaTile = memo(function MediaTile({
@@ -25,14 +23,11 @@ export const MediaTile = memo(function MediaTile({
   onActivate,
   onContextMenu,
   onMeasure,
-  onIndex,
 }: MediaTileProps) {
-  const hasQueuedIndex = useRef(false);
   const [mediaError, setMediaError] = useState(false);
   const isLinkPlaceholder = isGeneratedLinkPlaceholder(item);
 
   useEffect(() => {
-    hasQueuedIndex.current = false;
     setMediaError(false);
   }, [item.id]);
 
@@ -83,17 +78,6 @@ export const MediaTile = memo(function MediaTile({
           if (item.width !== image.naturalWidth || item.height !== image.naturalHeight) {
             onMeasure(item.id, image.naturalWidth, image.naturalHeight);
           }
-          if (!item.dominantColors.length && !hasQueuedIndex.current) {
-            hasQueuedIndex.current = true;
-            runWhenIdle(() => {
-              const index = extractColorIndex(image);
-              if (index?.dominantColors.length) {
-                onIndex(item.id, index.dominantColors, index.colorNames);
-              } else {
-                onIndex(item.id, [], []);
-              }
-            });
-          }
         }}
       />}
       {item.captureType === "link" && <span className="tile-kind">Saved page</span>}
@@ -111,17 +95,7 @@ function sameTileProps(previous: MediaTileProps, next: MediaTileProps) {
     && previous.onActivate === next.onActivate
     && previous.onContextMenu === next.onContextMenu
     && previous.onMeasure === next.onMeasure
-    && previous.onIndex === next.onIndex
     && previous.style.width === next.style.width
     && previous.style.height === next.style.height
     && previous.style.transform === next.style.transform;
-}
-
-function runWhenIdle(task: () => void) {
-  const schedule = window.requestIdleCallback;
-  if (typeof schedule === "function") {
-    schedule(task, { timeout: 1_500 });
-  } else {
-    globalThis.setTimeout(task, 60);
-  }
 }

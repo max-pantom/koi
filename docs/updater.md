@@ -7,13 +7,13 @@ macOS packages use an ad-hoc code-signing identity in addition to the updater si
 
 The application-side updater is implemented: Koi checks after launch, supports a manual check in Settings and Command K, downloads with progress, verifies the updater signature, installs, and relaunches. The repository also contains `.github/workflows/build-macos.yml`, which builds macOS, Windows, and Linux packages and asks `tauri-action` to create the signed updater files and `latest.json`.
 
-Two GitHub Actions secrets are still required. A real end-to-end update test also requires publishing a version newer than the installed 0.2.0 build.
+It is not end-to-end live yet. GitHub's latest published Koi release is still v0.1.10 and its updater endpoint does not currently serve a usable `latest.json`. Two GitHub Actions secrets are still required, followed by a successful tagged 0.2.0 workflow and publication of its draft release. A real update installation test then requires publishing a version newer than the installed 0.2.0 build.
 
 ## One-time GitHub setup
 
 The updater public key is committed in `src-tauri/tauri.conf.json`. The matching private key was created outside the repository at `/Users/macbook/.tauri/koi.key`; its password is stored in the macOS Keychain under `Koi Tauri updater signing`. Back up both securely. Losing the private key prevents existing installs from accepting future updates.
 
-Add these Actions secrets in **GitHub → max-pantom/koi → Settings → Secrets and variables → Actions**:
+Add these values under **GitHub → max-pantom/koi → Settings → Secrets and variables → Actions → Secrets**. They are secrets, not repository variables:
 
 - `TAURI_SIGNING_PRIVATE_KEY`: the complete contents of `/Users/macbook/.tauri/koi.key`
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: the value returned by `security find-generic-password -a macbook -s 'Koi Tauri updater signing' -w`
@@ -33,6 +33,8 @@ security find-generic-password -a macbook -s 'Koi Tauri updater signing' -w \
 These commands send the values directly to GitHub and do not print them.
 
 ## Publishing an update
+
+For the first 0.2 release, keep every application version at `0.2.0`, commit and push this repository, then create and push the `v0.2.0` tag. Do not bump to 0.2.1 until 0.2.0 has been published.
 
 1. Choose a version greater than the currently published version, for example `0.2.1`.
 2. Bump the same semantic version in `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`.

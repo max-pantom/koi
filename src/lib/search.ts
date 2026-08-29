@@ -1,4 +1,4 @@
-import type { MediaItem, SearchMode } from "./types";
+import type { MediaItem } from "./types";
 
 type SearchField = "name" | "tag" | "folder" | "site" | "type" | "color";
 
@@ -22,8 +22,7 @@ type WeightedField = {
 
 type CachedFields = {
   folderName: string;
-  normal: WeightedField[];
-  smart: WeightedField[];
+  fields: WeightedField[];
 };
 
 const FIELD_ALIASES = new Map<string, SearchField>([
@@ -39,12 +38,16 @@ const FIELD_ALIASES = new Map<string, SearchField>([
   ["colour", "color"],
 ]);
 
+// Saved-article bodies can be huge; only their opening is worth indexing.
+const MARKDOWN_INDEX_LIMIT = 20_000;
+
+const COVERAGE_BONUS = 40;
+
 const SEARCH_FIELD_CACHE = new WeakMap<MediaItem, CachedFields>();
 
 export function searchMedia(
   items: MediaItem[],
   query: string,
-  mode: SearchMode,
   folderNames = new Map<string, string>(),
 ) {
   const parsedTokens = parseSearchQuery(query);
@@ -54,11 +57,12 @@ export function searchMedia(
     ...token,
     compact: token.value.replace(/ /g, ""),
   }));
-  const wholeQuery = normalize(tokens.filter((token) => !token.exclude && !token.field).map((token) => token.value).join(" "));
+  const requiredTokens = tokens.filter((token) => !token.exclude);
+  const wholeQuery = normalize(requiredTokens.map((token) => token.value).join(" "));
   const results: Array<{ item: MediaItem; index: number; score: number }> = [];
 
   items.forEach((item, index) => {
-    const score = scoreItem(item, tokens, wholeQuery, mode, folderNames);
+    const score = scoreItem(item, tokens, wholeQuery, folderNames);
     if (score >= 0) results.push({ item, index, score });
   });
 
@@ -90,11 +94,12 @@ function scoreItem(
   item: MediaItem,
   tokens: PreparedToken[],
   wholeQuery: string,
-  mode: SearchMode,
   folderNames: Map<string, string>,
 ) {
-  const fields = getFields(item, mode, folderNames);
+  const fields = getFields(item, folderNames);
   let total = 0;
+  let requiredTotal = 0;
+  let requiredMatched = 0;
 
   for (const token of tokens) {
     let best = 0;
@@ -108,36 +113,51 @@ function scoreItem(
       continue;
     }
 
-    if (best === 0) return -1;
+    requiredTotal += 1;
+    if (best === 0) continue;
+    requiredMatched += 1;
     total += best;
   }
 
-  if (wholeQuery && fields[0]?.value.includes(wholeQuery)) total += 24;
+  // Partial queries still rank: matching more of the query lifts an item far
+  // above single-token matches, but no token ever hard-filters the result.
+  if (!requiredMatched || !requiredTotal) return -1;
+  total += (requiredMatched / requiredTotal) * COVERAGE_BONUS;
+
+  if (requiredMatched === requiredTotal && wholeQuery && fields[0]?.value.includes(wholeQuery)) total += 24;
   return total;
 }
 
-function getFields(item: MediaItem, mode: SearchMode, folderNames: Map<string, string>) {
+function getFields(item: MediaItem, folderNames: Map<string, string>) {
   const folderName = folderNames.get(item.folderId) ?? "";
   const cached = SEARCH_FIELD_CACHE.get(item);
-  if (cached?.folderName === folderName) return mode === "smart" ? cached.smart : cached.normal;
+  if (cached?.folderName === folderName) return cached.fields;
 
   const fields: WeightedField[] = [
     createField("name", item.name, 10),
     createField("tag", item.tags.join(" "), 9),
-    createField("folder", folderName, 6),
-    createField("site", [item.sourceTitle, item.sourcePageTitle, item.sourceSiteName, item.sourceByline, item.sourceDescription, item.sourceContentMarkdown, hostname(item.sourceLinkUrl), hostname(item.sourcePageUrl), hostname(item.sourceCanonicalUrl), hostname(item.sourceFinalUrl), hostname(item.sourceUrl)].filter(Boolean).join(" "), 7),
-    createField("type", [item.kind, item.captureType, item.extension].filter(Boolean).join(" "), 5),
-  ];
-
-  const smart = [
-    ...fields,
+    createField("site", [
+      item.sourceTitle,
+      item.sourcePageTitle,
+      item.sourceSiteName,
+      item.sourceByline,
+      truncateForIndex(item.sourceDescription),
+      truncateForIndex(item.sourceContentMarkdown),
+      hostname(item.sourceLinkUrl),
+      hostname(item.sourcePageUrl),
+      hostname(item.sourceCanonicalUrl),
+      hostname(item.sourceFinalUrl),
+      hostname(item.sourceUrl),
+    ].filter(Boolean).join(" "), 7),
     createField("color", [...item.colorNames, ...item.dominantColors].join(" "), 7),
+    createField("folder", folderName, 6),
+    createField("type", [item.kind, item.captureType, item.extension].filter(Boolean).join(" "), 5),
+    createField("site", [item.sourceLinkUrl, item.sourcePageUrl, item.sourceCanonicalUrl, item.sourceFinalUrl, item.sourceUrl].filter(Boolean).join(" "), 4),
     createField("name", item.path, 2),
-    createField("site", [item.sourceDescription, item.sourceLinkUrl, item.sourcePageUrl, item.sourceCanonicalUrl, item.sourceFinalUrl, item.sourceUrl].filter(Boolean).join(" "), 4),
   ];
 
-  SEARCH_FIELD_CACHE.set(item, { folderName, normal: fields, smart });
-  return mode === "smart" ? smart : fields;
+  SEARCH_FIELD_CACHE.set(item, { folderName, fields });
+  return fields;
 }
 
 function createField(field: SearchField, value: string, weight: number): WeightedField {
@@ -164,28 +184,38 @@ function matchScore(haystack: WeightedField, needle: string, compactNeedle: stri
 }
 
 function oneEditAway(left: string, right: string) {
+  if (left === right) return true;
   if (Math.abs(left.length - right.length) > 1) return false;
-  let leftIndex = 0;
-  let rightIndex = 0;
-  let edits = 0;
 
-  while (leftIndex < left.length && rightIndex < right.length) {
-    if (left[leftIndex] === right[rightIndex]) {
-      leftIndex += 1;
-      rightIndex += 1;
-      continue;
-    }
-    edits += 1;
-    if (edits > 1) return false;
-    if (left.length > right.length) leftIndex += 1;
-    else if (right.length > left.length) rightIndex += 1;
-    else {
-      leftIndex += 1;
-      rightIndex += 1;
-    }
+  if (left.length === right.length) {
+    const difference = firstDifference(left, right);
+    if (difference < 0) return true;
+    // An adjacent transposition ("koi"/"oki") counts as a single edit.
+    if (
+      difference + 1 < left.length
+      && left[difference] === right[difference + 1]
+      && left[difference + 1] === right[difference]
+      && left.slice(difference + 2) === right.slice(difference + 2)
+    ) return true;
+    return left.slice(difference + 1) === right.slice(difference + 1);
   }
 
-  return edits + Number(leftIndex < left.length || rightIndex < right.length) <= 1;
+  const [longer, shorter] = left.length > right.length ? [left, right] : [right, left];
+  const difference = firstDifference(longer, shorter);
+  if (difference < 0) return true;
+  return longer.slice(difference + 1) === shorter.slice(difference);
+}
+
+function firstDifference(left: string, right: string) {
+  const shared = Math.min(left.length, right.length);
+  for (let index = 0; index < shared; index += 1) {
+    if (left[index] !== right[index]) return index;
+  }
+  return shared < Math.max(left.length, right.length) ? shared : -1;
+}
+
+function truncateForIndex(value?: string) {
+  return value && value.length > MARKDOWN_INDEX_LIMIT ? value.slice(0, MARKDOWN_INDEX_LIMIT) : value || "";
 }
 
 function normalize(value: string) {

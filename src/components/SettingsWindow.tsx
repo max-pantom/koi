@@ -1,4 +1,4 @@
-import { AlignJustify, ChevronDown, Download, MessageSquareText, MonitorDown, Moon, Palette, RefreshCw, Sparkles, Volume2, X } from "lucide-react";
+import { AlignJustify, ChevronDown, Download, MessageSquareText, MessageSquarePlus, Moon, Palette, Plug, RefreshCw, Volume2, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import type { GridLayout } from "../lib/types";
@@ -21,8 +21,8 @@ export function SettingsWindow({
   onColorFormatChange,
   onDownloadExtension,
   onCheckForUpdates,
-  onPreviewInstaller,
-  onPreviewOnboarding,
+  onOpenMcp,
+  onSendFeedback,
   onClose,
 }: {
   isDark: boolean;
@@ -40,8 +40,8 @@ export function SettingsWindow({
   onColorFormatChange: (format: ColorFormat) => void;
   onDownloadExtension: () => void;
   onCheckForUpdates: () => void;
-  onPreviewInstaller: () => void;
-  onPreviewOnboarding: () => void;
+  onOpenMcp: () => void;
+  onSendFeedback: () => void;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLElement>(null);
@@ -153,14 +153,14 @@ export function SettingsWindow({
           <span>Download extension</span>
           <kbd aria-hidden="true">↗</kbd>
         </button>
-        <button type="button" onClick={onPreviewInstaller}>
-          <MonitorDown size={15} aria-hidden="true" />
-          <span>Preview installer</span>
+        <button type="button" onClick={onOpenMcp}>
+          <Plug size={15} aria-hidden="true" />
+          <span>AI &amp; MCP</span>
           <kbd aria-hidden="true">↗</kbd>
         </button>
-        <button type="button" onClick={onPreviewOnboarding}>
-          <Sparkles size={15} aria-hidden="true" />
-          <span>Preview onboarding</span>
+        <button type="button" onClick={onSendFeedback}>
+          <MessageSquarePlus size={15} aria-hidden="true" />
+          <span>Send feedback</span>
           <kbd aria-hidden="true">↗</kbd>
         </button>
         <button type="button" onClick={onCheckForUpdates} disabled={updateStatus === "Checking…" || updateStatus === "Downloading…" || updateStatus === "Installing…"}>

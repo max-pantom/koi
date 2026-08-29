@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { CommandMenu } from "../components/CommandMenu";
-import { ProductPreview, type ProductPreviewKind } from "../components/ProductPreview";
+import { ProductPreview } from "../components/ProductPreview";
+import {
+  LEGACY_ONBOARDING_STORAGE_KEYS,
+  ONBOARDING_STORAGE_KEY,
+} from "../components/OnboardingWindow";
+import { FeedbackDialog } from "../components/FeedbackDialog";
 import { FocusView } from "../components/FocusView";
+import { McpDialog } from "../components/McpDialog";
 import { MediaContextMenu } from "../components/MediaContextMenu";
 import { MediaGrid } from "../components/MediaGrid";
 import { SettingsWindow } from "../components/SettingsWindow";
@@ -24,14 +32,19 @@ import { useLibraryStore } from "../state/useLibraryStore";
 import "../styles/app.css";
 
 const EXTENSION_DOWNLOAD_URL = "https://github.com/max-pantom/koi/releases/latest/download/Koi-Capture-0.3.0.zip";
-const ONBOARDING_STORAGE_KEY = "koi.onboarding.v1.completed";
-
-function initialProductPreview(): ProductPreviewKind | undefined {
+function initialProductPreview(): "installer" | undefined {
   if (import.meta.env.DEV) {
     const preview = new URLSearchParams(window.location.search).get("preview");
-    if (preview === "installer" || preview === "onboarding") return preview;
+    if (preview === "installer") return preview;
   }
-  return localStorage.getItem(ONBOARDING_STORAGE_KEY) === "true" ? undefined : "onboarding";
+  return undefined;
+}
+
+async function showOnboardingWindow() {
+  const onboarding = await WebviewWindow.getByLabel("onboarding");
+  if (!onboarding) throw new Error("The onboarding window is unavailable.");
+  await onboarding.show();
+  await onboarding.setFocus();
 }
 
 export function App() {
@@ -41,7 +54,10 @@ export function App() {
   const [isTagEditorOpen, setIsTagEditorOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [productPreview, setProductPreview] = useState<ProductPreviewKind | undefined>(initialProductPreview);
+  const [isMcpOpen, setIsMcpOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [feedbackDiagnostics, setFeedbackDiagnostics] = useState("");
+  const [productPreview, setProductPreview] = useState<"installer" | undefined>(initialProductPreview);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => localStorage.getItem("koi.sidebar") !== "closed");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDark, setIsDark] = useState(() => localStorage.getItem("koi.theme") === "dark");
@@ -106,6 +122,18 @@ export function App() {
 
   useEffect(() => {
     void store.loadLibrary();
+  }, []);
+
+  useEffect(() => {
+    if (localStorage.getItem(ONBOARDING_STORAGE_KEY) === "true") return;
+    const completedLegacyOnboarding = LEGACY_ONBOARDING_STORAGE_KEYS.some(
+      (key) => localStorage.getItem(key) === "true",
+    );
+    if (completedLegacyOnboarding) {
+      localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
+      return;
+    }
+    void showOnboardingWindow().catch((error) => showToast(String(error), "error"));
   }, []);
 
   useEffect(() => {
@@ -189,7 +217,6 @@ export function App() {
   };
 
   const closeProductPreview = () => {
-    if (productPreview === "onboarding") localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
     setProductPreview(undefined);
   };
 
@@ -201,6 +228,8 @@ export function App() {
     setIsTagEditorOpen(false);
     setIsPaletteOpen(false);
     setIsSettingsOpen(false);
+    setIsMcpOpen(false);
+    setIsFeedbackOpen(false);
     closeProductPreview();
     setContextMenu(undefined);
     setRoute({ view: "grid" });
@@ -226,7 +255,7 @@ export function App() {
 
   const copyPalette = (item = store.selectedItem) => {
     if (!item) return;
-    const palette = item.dominantColors.slice(0, 5).join(" ");
+    const palette = item.dominantColors.slice(0, 5).map((hex) => formatColor(hex, colorFormat)).join(" ");
     if (!palette) return;
     void navigator.clipboard.writeText(palette);
     playSound("copy");
@@ -312,14 +341,6 @@ export function App() {
     setIsPaletteOpen(true);
     setContextMenu(undefined);
     playSound("command_open");
-  };
-
-  const searchColor = (color: string) => {
-    store.setSearchMode("smart");
-    store.setQuery(color);
-    setIsSearchOpen(true);
-    setIsPaletteOpen(false);
-    playSound("search_open");
   };
 
   const resolveFolder = (folderId?: string) => {
@@ -433,6 +454,13 @@ export function App() {
     void getCurrentWindow().startDragging();
   };
 
+  const openFeedback = async () => {
+    setIsSettingsOpen(false);
+    setFeedbackDiagnostics(await buildFeedbackDiagnostics(store));
+    setIsFeedbackOpen(true);
+    playSound("command_open");
+  };
+
   const commands = [
     { id: "add-folder", label: "Add folder…", shortcut: "⌘O", keywords: "library import", run: () => void runLibraryAction(store.addFolder, "Folder added", "added") },
     { id: "search", label: "Search library", shortcut: "⌘F", keywords: "find images", run: () => {
@@ -453,12 +481,18 @@ export function App() {
     ] : []),
     { id: "toggle-dark", label: isDark ? "Use light appearance" : "Use dark appearance", shortcut: "M", keywords: "theme mode", run: toggleDarkMode },
     { id: "check-update", label: "Check for updates", keywords: "upgrade version release", run: () => void checkForUpdates() },
+    { id: "mcp", label: "Set up AI & MCP", keywords: "claude model context protocol llm connect token", run: () => {
+      setIsSettingsOpen(false);
+      setIsMcpOpen(true);
+      playSound("command_open");
+    } },
+    { id: "feedback", label: "Send feedback", keywords: "report bug idea praise github", run: () => void openFeedback() },
     { id: "preview-installer", label: "Preview Mac installer", keywords: "dmg setup install drag applications", run: () => {
       setProductPreview("installer");
       setIsSettingsOpen(false);
     } },
-    { id: "preview-onboarding", label: "Preview onboarding", keywords: "welcome setup first launch", run: () => {
-      setProductPreview("onboarding");
+    { id: "preview-onboarding", label: "Open onboarding", keywords: "welcome setup first launch", run: () => {
+      void showOnboardingWindow().catch((error) => showToast(String(error), "error"));
       setIsSettingsOpen(false);
     } },
     { id: "settings", label: "Open settings", shortcut: "⌘,", keywords: "preferences sound layout", run: () => setIsSettingsOpen(true) },
@@ -555,6 +589,12 @@ export function App() {
       if (id === "reconnect-folder") resolveFolder();
       if (id === "preferences") {
         setIsSettingsOpen(true);
+        playSound("command_open");
+      }
+      if (id === "feedback") void openFeedback();
+      if (id === "mcp") {
+        setIsSettingsOpen(false);
+        setIsMcpOpen(true);
         playSound("command_open");
       }
       if (id === "search") {
@@ -656,10 +696,6 @@ export function App() {
             });
           }}
           onMeasureBatch={store.updateItemSizes}
-          onIndex={(mediaId, dominantColors, colorNames) => {
-            if (dominantColors.length) void store.saveMediaIndex(mediaId, dominantColors, colorNames);
-            else void store.extractMediaIndex(mediaId);
-          }}
           gridColumns={store.gridColumns}
           gridLayout={store.gridLayout}
           showImageTooltips={showImageTooltips}
@@ -735,14 +771,11 @@ export function App() {
             setColorFormat(format);
           }}
           onDownloadExtension={() => void openUrl(EXTENSION_DOWNLOAD_URL)}
-          onPreviewInstaller={() => {
+          onOpenMcp={() => {
             setIsSettingsOpen(false);
-            setProductPreview("installer");
+            setIsMcpOpen(true);
           }}
-          onPreviewOnboarding={() => {
-            setIsSettingsOpen(false);
-            setProductPreview("onboarding");
-          }}
+          onSendFeedback={() => void openFeedback()}
           onCheckForUpdates={() => void checkForUpdates()}
           onClose={() => setIsSettingsOpen(false)}
         />
@@ -802,8 +835,35 @@ export function App() {
         />
       )}
 
+      {isMcpOpen && <McpDialog onClose={() => setIsMcpOpen(false)} />}
+
+      {isFeedbackOpen && (
+        <FeedbackDialog
+          diagnostics={feedbackDiagnostics}
+          onClose={() => setIsFeedbackOpen(false)}
+          onCopied={() => showToast("Report copied", "success")}
+        />
+      )}
+
     </main>
   );
+}
+
+async function buildFeedbackDiagnostics(store: { folders: unknown[]; items: unknown[] }) {
+  let version = "";
+  try {
+    version = await getVersion();
+  } catch {
+    version = "";
+  }
+  const platform = (navigator as { userAgentData?: { platform?: string } }).userAgentData?.platform
+    || navigator.platform
+    || "";
+  return [
+    `Koi ${version}`,
+    platform,
+    `Folders: ${store.folders.length} · Items: ${store.items.length}`,
+  ].filter(Boolean).join("\n");
 }
 
 type ToastTone = "success" | "error" | "delete" | "added" | "progress";

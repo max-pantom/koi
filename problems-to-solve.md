@@ -65,8 +65,13 @@
 - [x] replace striped pasted-link placeholders with a proper saved-page preview card
 - [x] add an earthy Dock mockup and an original-dark Dock edit using the alternate Koi icon
 - [x] add signed automatic app updates with a manual check in Settings
-- [ ] the white border around rightclick menu and drop down remove it
-- [ ] the onboarding no gradients pls also better graphics and more like raycast
-- [ ] it should be on its own window and should not be in the preveiew state
-- [ ] remove both installer and preview from settings only accessable through a series of command or some sort in the app 
-- [ ] saved pages are not showing OG again or are not getting the OG pls rectify
+- [x] the white border around right-click menus and dropdowns is removed while keyboard focus remains visible
+- [x] onboarding uses solid surfaces, clearer product graphics, and restrained Raycast-inspired motion
+- [x] onboarding runs in its own first-launch window instead of preview state
+- [x] installer and onboarding controls are removed from Settings and available through Command-K
+- [x] saved pages fetch Open Graph metadata/images again and older pasted links refresh in the background
+- [x] add a place to give feedback about the app (form → prefilled GitHub issue, diagnostics optional)
+- [x] local MCP server so AI assistants can search/read/tag the library — configurable in Settings → AI & MCP with per-client connection snippets; bundled stdio shim for Claude Desktop
+- [x] overhaul color extraction: one Rust implementation (HSV clustering, saturation weighting, hue dedupe), background-index whole library, negative-cache undecodable formats instead of retrying forever
+- [x] fix palette copy ignoring the hex/rgb/hsl setting
+- [x] overhaul search: partial multi-word matches now rank instead of vanishing, colors searchable without smart mode, article markdown capped for speed

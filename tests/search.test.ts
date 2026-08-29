@@ -28,33 +28,39 @@ describe("searchMedia", () => {
     const exact = item("cafe-poster", { name: "Café poster.jpg" });
     const tagged = item("reference", { tags: ["cafe", "poster"] });
 
-    expect(searchMedia([tagged, exact], "cafe poster", "normal", folders)).toEqual([exact, tagged]);
+    expect(searchMedia([tagged, exact], "cafe poster", folders)).toEqual([exact, tagged]);
   });
 
-  it("matches every token across useful fields", () => {
-    const match = item("landing", { tags: ["editorial"], sourceSiteName: "Are.na" });
-    const miss = item("landing-2", { tags: ["editorial"], sourceSiteName: "Dribbble" });
+  it("ranks items matching every token above single-token matches", () => {
+    const full = item("landing", { tags: ["editorial"], sourceSiteName: "Are.na" });
+    const partial = item("landing-2", { tags: ["editorial"], sourceSiteName: "Dribbble" });
 
-    expect(searchMedia([miss, match], "editorial arena", "normal", folders)).toEqual([match]);
+    expect(searchMedia([partial, full], "editorial arena", folders)).toEqual([full, partial]);
   });
 
   it("supports quoted fields and exclusions", () => {
     const kept = item("warm", { tags: ["deep blue"], captureType: "link", sourceSiteName: "Example" });
     const excluded = item("cold", { tags: ["deep blue", "draft"], captureType: "link", sourceSiteName: "Example" });
 
-    expect(searchMedia([excluded, kept], 'tag:"deep blue" type:link -tag:draft', "normal", folders)).toEqual([kept]);
+    expect(searchMedia([excluded, kept], 'tag:"deep blue" type:link -tag:draft', folders)).toEqual([kept]);
   });
 
-  it("keeps color and full-path matching in smart mode", () => {
+  it("matches colors without needing a special mode", () => {
     const blue = item("ocean", { colorNames: ["blue"], dominantColors: ["#204080"] });
 
-    expect(searchMedia([blue], "blue", "normal", folders)).toEqual([]);
-    expect(searchMedia([blue], "blue", "smart", folders)).toEqual([blue]);
+    expect(searchMedia([blue], "blue", folders)).toEqual([blue]);
+    expect(searchMedia([blue], "-color:blue", folders)).toEqual([]);
   });
 
   it("tolerates a one-character typo for words of four or more characters", () => {
     const poster = item("typography-poster");
-    expect(searchMedia([poster], "typograpy", "normal", folders)).toEqual([poster]);
+    expect(searchMedia([poster], "typograpy", folders)).toEqual([poster]);
+  });
+
+  it("treats an adjacent transposition as a single edit", () => {
+    const sorted = item("sort-palette");
+    expect(searchMedia([sorted], "srot", folders)).toEqual([sorted]);
+    expect(searchMedia([item("unrelated-file")], "srot", folders)).toEqual([]);
   });
 });
 

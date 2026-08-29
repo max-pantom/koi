@@ -6,7 +6,10 @@ export function mediaSrc(item: MediaItem) {
 }
 
 export function isGeneratedLinkPlaceholder(item: MediaItem) {
-  return item.captureType === "link" && /^clipboard-link-\d+\.(?:png|jpe?g|webp)$/i.test(item.name);
+  return item.captureType === "link"
+    && /^clipboard-link-\d+\.(?:png|jpe?g|webp)$/i.test(item.name)
+    && !item.sourceDescription
+    && !item.sourcePageTitle;
 }
 
 export function sourceHostname(item: MediaItem) {

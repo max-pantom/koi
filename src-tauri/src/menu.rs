@@ -20,6 +20,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &PredefinedMenuItem::about(app, Some("About Koi"), Some(about))?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "preferences", "Settings...", true, Some("Cmd+,"))?,
+            &MenuItem::with_id(app, "feedback", "Send Feedback…", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::services(app, None)?,
             &PredefinedMenuItem::separator(app)?,
