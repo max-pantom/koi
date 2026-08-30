@@ -1,12 +1,12 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import appIcon from "../../src-tauri/icons/128x128@2x.png";
-import libraryImage from "../../docs/images/koi-library.png";
+import libraryImage from "../../docs/images/image.png";
 import dockImage from "../../docs/images/koi-icon-dock-earthy.jpg";
-import { ThemeToggle } from "./theme-toggle";
 
 const githubUrl = "https://github.com/max-pantom/koi";
 const releaseUrl = `${githubUrl}/releases/latest`;
+const captureUrl = `${githubUrl}/releases`;
 
 export default function Home() {
   return (
@@ -20,8 +20,8 @@ export default function Home() {
           </a>
           <div className="nav-links">
             <a href="#features">Features</a>
+            <a href="#downloads">Downloads</a>
             <a href={githubUrl}>GitHub</a>
-            <ThemeToggle />
           </div>
         </nav>
       </header>
@@ -51,19 +51,48 @@ export default function Home() {
         </section>
 
         <section className="features section" id="features" aria-labelledby="features-title">
-          <p className="section-label">One quiet place</p>
-          <h2 id="features-title">Made for collecting, not managing.</h2>
-          <p className="section-intro">Koi gets out of the way while keeping every reference useful.</p>
+          <p className="section-label">Everything in one place</p>
+          <h2 id="features-title">Save quickly. Find anything. Keep the original.</h2>
+          <p className="section-intro">Koi 0.2 covers the full reference workflow without accounts, uploads, or a new folder system.</p>
           <div className="feature-grid">
-            <Feature icon={<CaptureIcon />} title="Save from anywhere">
-              Capture original media from the web, paste a link, or watch a folder on your Mac.
+            <Feature icon={<CaptureIcon />} title="Koi Capture">
+              Save images, GIFs, videos, pages, and articles from Chrome while preserving their source details.
+            </Feature>
+            <Feature icon={<DownloadIcon />} title="Original social media">
+              Resolve supported social links to their original image or video instead of storing a flattened bookmark.
+            </Feature>
+            <Feature icon={<FolderIcon />} title="Folders you control">
+              Turn existing folders into visual libraries and watch them for changes without moving your files.
             </Feature>
             <Feature icon={<SearchIcon />} title="Find it naturally">
               Search names, tags, article text, colors, and sources from one compact command surface.
             </Feature>
-            <Feature icon={<LockIcon />} title="Local by default">
-              Your originals stay in folders you control. Koi indexes them without taking ownership.
+            <Feature icon={<VideoIcon />} title="Images, GIFs, and video">
+              Browse mixed media together, play supported video in place, and inspect originals in a focused preview.
             </Feature>
+            <Feature icon={<ArticleIcon />} title="Read saved articles">
+              Preserve readable article text as Markdown and return to it inside a distraction-free preview.
+            </Feature>
+            <Feature icon={<PaletteIcon />} title="Use the colors">
+              Extract useful palettes in the background and copy them as HEX, RGB, or HSL when you need them.
+            </Feature>
+            <Feature icon={<CommandIcon />} title="Stay on the keyboard">
+              Search, rescan, paste, reveal, copy, and connect MCP clients through Command-K.
+            </Feature>
+            <Feature icon={<LockIcon />} title="Local and private">
+              Your originals, tags, palettes, and capture metadata stay on your computer in folders you control.
+            </Feature>
+          </div>
+        </section>
+
+        <section className="capture-section section" aria-labelledby="capture-title">
+          <div>
+            <p className="section-label">Koi Capture</p>
+            <h2 id="capture-title">Send the web straight to your library.</h2>
+          </div>
+          <div className="capture-copy">
+            <p>The optional Chrome extension adds quick save and folder selection to your browser. It can collect visible Instagram carousels, discover direct social media, preserve article text and bylines, and save videos alongside images.</p>
+            <a className="text-link" href={captureUrl}>Download Koi Capture <span aria-hidden="true">↗</span></a>
           </div>
         </section>
 
@@ -88,6 +117,18 @@ export default function Home() {
           <Image src={dockImage} alt="Koi in a macOS Dock beside familiar apps" sizes="(max-width: 760px) 92vw, 520px" />
         </section>
 
+        <section className="downloads section" id="downloads" aria-labelledby="downloads-title">
+          <p className="section-label">Downloads</p>
+          <h2 id="downloads-title">Choose your platform.</h2>
+          <p className="section-intro">Every desktop build and the browser extension are published together on GitHub Releases.</p>
+          <div className="download-grid">
+            <DownloadCard platform="macOS" detail="Apple Silicon or Intel · DMG" href={releaseUrl} />
+            <DownloadCard platform="Windows" detail="64-bit · MSI or setup EXE" href={releaseUrl} />
+            <DownloadCard platform="Linux" detail="64-bit · AppImage or DEB" href={releaseUrl} />
+            <DownloadCard platform="Koi Capture" detail="Chrome extension · ZIP" href={captureUrl} />
+          </div>
+        </section>
+
         <section className="final-cta section" aria-labelledby="cta-title">
           <Image src={appIcon} alt="Koi app icon" width={76} height={76} />
           <h2 id="cta-title">Build a library worth returning to.</h2>
@@ -109,12 +150,34 @@ function Feature({ icon, title, children }: { icon: ReactNode; title: string; ch
   return <article className="feature"><div className="feature-icon">{icon}</div><h3>{title}</h3><p>{children}</p></article>;
 }
 
+function DownloadCard({ platform, detail, href }: { platform: string; detail: string; href: string }) {
+  return <a className="download-card" href={href}><span><strong>{platform}</strong><small>{detail}</small></span><span aria-hidden="true">↓</span></a>;
+}
+
 function CaptureIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="3" /><circle cx="9" cy="9.5" r="1.5" /><path d="m5.5 17 4.2-4 3 2.7 2.5-2.3 3.3 3.6" /></svg>;
 }
 function SearchIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m15.5 15.5 4 4" /></svg>;
 }
+function DownloadIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" /></svg>;
+}
+function FolderIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5h6l2-2h9v13h-17z" /></svg>;
+}
+function VideoIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="13" height="14" rx="3" /><path d="m16.5 10 4-2v8l-4-2" /></svg>;
+}
 function LockIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="9.5" width="16" height="11" rx="3" /><path d="M8 9.5V7a4 4 0 0 1 8 0v2.5M12 14v2" /></svg>;
+}
+function ArticleIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4v13H6zM14 3.5v4h4M9 12h6M9 15.5h6" /></svg>;
+}
+function PaletteIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17h1.2a1.8 1.8 0 0 0 0-3.6h-.7a1.4 1.4 0 0 1 0-2.8H16a4.5 4.5 0 0 0 4.5-4.5c0-3.4-3.8-6.1-8.5-6.1Z" /><circle cx="7.8" cy="10" r=".8" /><circle cx="10" cy="6.8" r=".8" /><circle cx="14" cy="6.8" r=".8" /></svg>;
+}
+function CommandIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8H6.8a2.8 2.8 0 1 1 2.8-2.8V19a2.8 2.8 0 1 1-2.8-2.8H17a2.8 2.8 0 1 1-2.8 2.8V5.2A2.8 2.8 0 1 1 17 8Z" /></svg>;
 }

@@ -3180,8 +3180,9 @@ kbd {
 
 .mcp-window {
   top: 50%;
-  gap: 10px;
-  width: min(440px, calc(100vw - 36px));
+  gap: 12px;
+  width: min(520px, calc(100vw - 36px));
+  max-height: calc(100vh - 32px);
   overflow-x: hidden;
 }
 
@@ -3370,7 +3371,7 @@ kbd {
 }
 
 .mcp-snippet {
-  max-height: 116px;
+  max-height: 152px;
   overflow-x: hidden;
   overflow-y: auto;
   margin: 0;
@@ -3681,6 +3682,45 @@ kbd {
 .app.is-dark .mcp-note,
 .app.is-dark .mcp-hint {
   color: #85857e;
+}
+
+/* MCP stays light in both app appearances so setup commands remain easy to scan. */
+.app.is-dark .mcp-window {
+  color: #333330;
+  background: #fbfbf9;
+  box-shadow:
+    0 24px 72px rgba(0, 0, 0, 0.36),
+    0 3px 12px rgba(0, 0, 0, 0.16);
+}
+
+.app.is-dark .mcp-window .panel-head,
+.app.is-dark .mcp-window .mcp-intro,
+.app.is-dark .mcp-window .mcp-status-label {
+  color: #555550;
+}
+
+.app.is-dark .mcp-window .mcp-section-head {
+  color: #77776f;
+}
+
+.app.is-dark .mcp-window .mcp-note,
+.app.is-dark .mcp-window .mcp-hint {
+  color: #92928b;
+}
+
+.app.is-dark .mcp-window .mcp-status-row,
+.app.is-dark .mcp-window .mcp-token-row code,
+.app.is-dark .mcp-window .mcp-snippet {
+  color: #444440;
+  background: #f0f0ee;
+}
+
+.app.is-dark .mcp-window .panel-head button,
+.app.is-dark .mcp-window .mcp-section-head button,
+.app.is-dark .mcp-window .mcp-status-row button,
+.app.is-dark .mcp-window .mcp-token-row button {
+  color: #555550;
+  background: #eeeeeb;
 }
 
 .app.is-dark .feedback-field { color: #cfcfcf; }

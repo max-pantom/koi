@@ -1,6 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import { Agentation } from "agentation";
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import "./globals.css";
+
+const openRunde = localFont({
+  src: [
+    { path: "../../src/assets/fonts/OpenRunde-Regular.woff2", weight: "400", style: "normal" },
+    { path: "../../src/assets/fonts/OpenRunde-Medium.woff2", weight: "500", style: "normal" },
+    { path: "../../src/assets/fonts/OpenRunde-Semibold.woff2", weight: "600", style: "normal" },
+  ],
+  display: "swap",
+  variable: "--font-open-runde",
+});
 
 export const metadata: Metadata = {
   title: "Koi — Your visual reference library",
@@ -14,26 +26,17 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: "light dark",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f5f1" },
-    { media: "(prefers-color-scheme: dark)", color: "#171716" },
-  ],
+  colorScheme: "light",
+  themeColor: "#ffffff",
 };
-
-const themeScript = `
-  try {
-    const saved = localStorage.getItem('koi-site-theme');
-    const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  } catch (_) {}
-`;
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
-      <body>{children}</body>
+    <html lang="en">
+      <body className={openRunde.variable}>
+        {children}
+        {process.env.NODE_ENV === "development" && <Agentation />}
+      </body>
     </html>
   );
 }

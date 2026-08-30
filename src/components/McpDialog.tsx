@@ -1,4 +1,4 @@
-import { Copy, Eye, EyeOff, RefreshCw, X } from "lucide-react";
+import { Copy, RefreshCw, X } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
@@ -11,19 +11,9 @@ type McpStatus = {
   sidecarPath: string;
 };
 
-type McpClient = "codex" | "claude-code" | "claude-desktop" | "other";
-
-const CLIENT_LABELS: Record<McpClient, string> = {
-  codex: "Codex and ChatGPT",
-  "claude-code": "Claude Code",
-  "claude-desktop": "Claude Desktop",
-  other: "Other MCP client",
-};
-
 export function McpDialog({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLElement>(null);
   const [status, setStatus] = useState<McpStatus>();
-  const [client, setClient] = useState<McpClient>("codex");
   const [showToken, setShowToken] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -87,9 +77,7 @@ export function McpDialog({ onClose }: { onClose: () => void }) {
     }
     if (event.key !== "Tab") return;
     const focusable = Array.from(
-      dialogRef.current?.querySelectorAll<HTMLElement>(
-        "button:not([disabled]), select:not([disabled]), summary, input:not([disabled])",
-      ) ?? [],
+      dialogRef.current?.querySelectorAll<HTMLElement>("button:not([disabled])") ?? [],
     );
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -106,8 +94,15 @@ export function McpDialog({ onClose }: { onClose: () => void }) {
   const token = status?.token || "";
   const hiddenToken = "<your Koi access token>";
   const sidecarPath = status?.sidecarPath || "koi-mcp";
-  const setup = getClientSetup(client, endpoint, sidecarPath, token);
-  const previewSetup = getClientSetup(client, endpoint, sidecarPath, showToken ? token : hiddenToken);
+  const visibleToken = showToken ? token : hiddenToken;
+  const codexCommand = `codex mcp add koi --env KOI_MCP_TOKEN=${token} -- "${sidecarPath}"`;
+  const visibleCodexCommand = `codex mcp add koi --env KOI_MCP_TOKEN=${visibleToken} -- "${sidecarPath}"`;
+  const claudeCodeCommand = `claude mcp add --transport http koi ${endpoint} --header "Authorization: Bearer ${token}"`;
+  const visibleClaudeCodeCommand = `claude mcp add --transport http koi ${endpoint} --header "Authorization: Bearer ${visibleToken}"`;
+  const claudeDesktopJson = desktopConfig(sidecarPath, token);
+  const visibleClaudeDesktopJson = desktopConfig(sidecarPath, visibleToken);
+  const otherClientConfig = `URL: ${endpoint}\nAuthorization: Bearer ${token}`;
+  const visibleOtherClientConfig = `URL: ${endpoint}\nAuthorization: Bearer ${visibleToken}`;
   const isOn = !!status?.enabled && !!status?.running;
 
   return (
@@ -122,21 +117,22 @@ export function McpDialog({ onClose }: { onClose: () => void }) {
         onPointerDown={(event) => event.stopPropagation()}
       >
         <div className="panel-head">
-          <span id="mcp-title">Connect Koi</span>
-          <button type="button" onClick={onClose} aria-label="Close MCP setup" title="Close">
+          <span id="mcp-title">AI &amp; MCP</span>
+          <button type="button" onClick={onClose} aria-label="Close AI and MCP setup" title="Close">
             <X size={15} aria-hidden="true" />
           </button>
         </div>
 
         <p className="mcp-intro">
-          Let any compatible AI client search, read, and tag your local Koi library.
+          Run Koi as a local Model Context Protocol server so Codex, ChatGPT, Claude,
+          and other compatible clients can search, read, and tag your library.
         </p>
 
         <div className="mcp-status-row" role="status" aria-live="polite">
           <span className={`mcp-dot${isOn ? " is-on" : status?.enabled ? " is-warn" : ""}`} aria-hidden="true" />
           <span className="mcp-status-label">
-            {!status ? "Checking local server…" : status.enabled
-              ? status.running ? "Local server is running" : "The local port is already in use"
+            {!status ? "Checking…" : status.enabled
+              ? status.running ? `Running · ${endpoint}` : "The local port is already in use"
               : "Local server is off"}
           </span>
           <button type="button" disabled={busy || !status} onClick={() => void setEnabled(!status?.enabled)}>
@@ -144,92 +140,56 @@ export function McpDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <label className="mcp-client-field">
-          <span>Connect with</span>
-          <select value={client} onChange={(event) => setClient(event.target.value as McpClient)}>
-            {Object.entries(CLIENT_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </label>
-
-        <div className="mcp-setup-card">
-          <div className="mcp-setup-head">
-            <div>
-              <strong>{CLIENT_LABELS[client]}</strong>
-              <span>{previewSetup.hint}</span>
-            </div>
-            <button type="button" onClick={() => void copy(setup.value, setup.copyLabel)} disabled={!token}>
-              <Copy size={13} strokeWidth={1.8} aria-hidden="true" />
-              Copy setup
+        <div className="mcp-section">
+          <div className="mcp-section-head">
+            <span>Access token</span>
+            <button type="button" disabled={busy} onClick={() => void regenerateToken()} title="Generate a new token">
+              <RefreshCw size={12} strokeWidth={1.8} aria-hidden="true" />
+              Regenerate
             </button>
           </div>
-          <pre className="mcp-snippet">{previewSetup.value}</pre>
+          <div className="mcp-token-row">
+            <code>{!token ? "—" : showToken ? token : `${token.slice(0, 6)}••••••••••••`}</code>
+            <button type="button" onClick={() => setShowToken((current) => !current)}>
+              {showToken ? "Hide" : "Show"}
+            </button>
+            <button type="button" onClick={() => void copy(token, "Token")} disabled={!token}>
+              <Copy size={12} strokeWidth={1.8} aria-hidden="true" />
+              Copy
+            </button>
+          </div>
         </div>
 
-        <details className="mcp-details">
-          <summary>Connection details</summary>
-          <div className="mcp-detail-row">
-            <span>Access token</span>
-            <code>{!token ? "—" : showToken ? token : `${token.slice(0, 6)}••••••••••••`}</code>
-            <button type="button" onClick={() => setShowToken((current) => !current)} aria-label={showToken ? "Hide access token" : "Show access token"}>
-              {showToken ? <EyeOff size={13} aria-hidden="true" /> : <Eye size={13} aria-hidden="true" />}
-            </button>
-            <button type="button" onClick={() => void copy(token, "Token")} disabled={!token} aria-label="Copy access token">
-              <Copy size={13} aria-hidden="true" />
-            </button>
-          </div>
-          <div className="mcp-detail-row">
-            <span>Address</span>
-            <code>{endpoint}</code>
-            <button type="button" onClick={() => void copy(endpoint, "Address")} aria-label="Copy MCP address">
-              <Copy size={13} aria-hidden="true" />
-            </button>
-          </div>
-          <button className="mcp-regenerate" type="button" disabled={busy} onClick={() => void regenerateToken()}>
-            <RefreshCw size={13} strokeWidth={1.8} aria-hidden="true" />
-            Replace access token
-          </button>
-        </details>
+        <Snippet label="Codex & ChatGPT" hint="Run once in Terminal:" value={visibleCodexCommand} onCopy={() => void copy(codexCommand, "Codex command")} />
+        <Snippet label="Claude Code" hint="Run once in Terminal:" value={visibleClaudeCodeCommand} onCopy={() => void copy(claudeCodeCommand, "Claude Code command")} />
+        <Snippet label="Claude Desktop" hint="Add to the desktop MCP configuration:" value={visibleClaudeDesktopJson} onCopy={() => void copy(claudeDesktopJson, "Claude Desktop config")} />
+        <Snippet label="Any other MCP client" hint="Connect over Streamable HTTP with this header:" value={visibleOtherClientConfig} onCopy={() => void copy(otherClientConfig, "Connection details")} />
 
         <p className="mcp-note">
-          Koi listens only on this Mac. Connected clients may send requested library content to their AI provider.
+          Koi listens only on this Mac. File paths are never returned. Connected clients may
+          send requested library content to their configured AI provider, and replacing the token disconnects them.
         </p>
       </section>
     </div>
   );
 }
 
-function getClientSetup(
-  client: McpClient,
-  endpoint: string,
-  sidecarPath: string,
-  token: string,
-): { value: string; hint: string; copyLabel: string } {
-  if (client === "codex") {
-    return {
-      value: `codex mcp add koi --env KOI_MCP_TOKEN=${token} -- "${sidecarPath}"`,
-      hint: "Run once in Terminal. Codex CLI, the IDE extension, and ChatGPT share this setup.",
-      copyLabel: "Codex command",
-    };
-  }
-  if (client === "claude-code") {
-    return {
-      value: `claude mcp add --transport http koi ${endpoint} --header "Authorization: Bearer ${token}"`,
-      hint: "Run once in Terminal.",
-      copyLabel: "Claude Code command",
-    };
-  }
-  if (client === "claude-desktop") {
-    return {
-      value: JSON.stringify({ mcpServers: { koi: { command: sidecarPath, env: { KOI_MCP_TOKEN: token } } } }, null, 2),
-      hint: "Add this server to your desktop configuration.",
-      copyLabel: "Claude Desktop configuration",
-    };
-  }
-  return {
-    value: `URL: ${endpoint}\nAuthorization: Bearer ${token}`,
-    hint: "Use Streamable HTTP and send the bearer token with each request.",
-    copyLabel: "Connection details",
-  };
+function desktopConfig(sidecarPath: string, token: string) {
+  return JSON.stringify({ mcpServers: { koi: { command: sidecarPath, env: { KOI_MCP_TOKEN: token } } } }, null, 2);
+}
+
+function Snippet({ label, hint, value, onCopy }: { label: string; hint: string; value: string; onCopy: () => void }) {
+  return (
+    <div className="mcp-section">
+      <div className="mcp-section-head">
+        <span>{label}</span>
+        <button type="button" onClick={onCopy}>
+          <Copy size={12} strokeWidth={1.8} aria-hidden="true" />
+          Copy
+        </button>
+      </div>
+      <p className="mcp-hint">{hint}</p>
+      <pre className="mcp-snippet">{value}</pre>
+    </div>
+  );
 }
