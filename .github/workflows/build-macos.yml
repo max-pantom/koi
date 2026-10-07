@@ -95,13 +95,9 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           KOI_SIDECAR_TARGET: ${{ matrix.rust_targets }}
         with:
           uploadWorkflowArtifacts: true
-          uploadUpdaterJson: true
-          uploadUpdaterSignatures: true
           retryAttempts: 3
           tagName: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
           releaseDraft: true
