@@ -24,7 +24,8 @@
           "x": 18,
           "y": 22
         },
-        "backgroundColor": "#ffffff",
+        "transparent": true,
+        "backgroundColor": "#00000000",
         "visible": true
       },
       {

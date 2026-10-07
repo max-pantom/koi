@@ -5,9 +5,9 @@ macOS packages use an ad-hoc code-signing identity in addition to the updater si
 
 ## Current status
 
-The application-side updater is implemented: Koi checks after launch, supports a manual check in Settings and Command K, downloads with progress, verifies the updater signature, installs, and relaunches. The repository also contains `.github/workflows/build-macos.yml`, which builds macOS, Windows, and Linux packages and asks `tauri-action` to create the signed updater files and `latest.json`.
+The application-side updater is implemented: Koi checks after launch, supports a manual check in Settings and Command K, downloads with progress, verifies the updater signature, installs, and relaunches. If the release feed has no `latest.json`, Koi treats automatic updates as unavailable instead of showing a raw release-JSON error. The repository also contains `.github/workflows/build-macos.yml`, which builds macOS, Windows, and Linux installers.
 
-It is not end-to-end live yet. GitHub's latest published Koi release is still v0.1.10 and its updater endpoint does not currently serve a usable `latest.json`. Two GitHub Actions secrets are still required, followed by a successful tagged 0.2.0 workflow and publication of its draft release. A real update installation test then requires publishing a version newer than the installed 0.2.0 build.
+It is not end-to-end live yet. The updater endpoint does not currently serve a usable `latest.json`, so CI leaves updater artifacts disabled while continuing to publish manual installers. Two GitHub Actions secrets are still required before `createUpdaterArtifacts`, `uploadUpdaterJson`, and `uploadUpdaterSignatures` can be re-enabled. A real update installation test then requires publishing a version newer than the installed build.
 
 ## One-time GitHub setup
 

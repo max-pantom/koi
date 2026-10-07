@@ -8,6 +8,8 @@ const LocalAgentation = import.meta.env.DEV
   : undefined;
 
 const isOnboarding = new URLSearchParams(window.location.search).get("surface") === "onboarding";
+const isMacOS = navigator.userAgent.includes("Macintosh") || navigator.platform.startsWith("Mac");
+document.documentElement.classList.toggle("is-macos", isMacOS && !isOnboarding);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

@@ -12,6 +12,11 @@ export async function checkForKoiUpdate() {
   return check({ timeout: 12_000 });
 }
 
+export function isUpdaterFeedUnavailable(error: unknown) {
+  const message = String(error).toLowerCase();
+  return message.includes("valid release json") || message.includes("latest.json");
+}
+
 export async function installKoiUpdate(
   update: KoiUpdate,
   onProgress: (progress: UpdateProgress) => void,

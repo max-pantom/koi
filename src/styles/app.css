@@ -32,6 +32,12 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root.is-macos,
+:root.is-macos body,
+:root.is-macos #root {
+  background: transparent;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -91,6 +97,14 @@ button:focus:not(:focus-visible) {
   color: #ededed;
 }
 
+.is-macos .app {
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.is-macos .app.is-dark {
+  background: rgba(17, 17, 17, 0.66);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -143,6 +157,24 @@ button:focus:not(:focus-visible) {
   --sidebar-active: #30302e;
   --sidebar-field: #232322;
   --sidebar-focus: #b8b8b1;
+}
+
+.is-macos .sidebar {
+  --sidebar-background: rgba(247, 247, 245, 0.62);
+  --sidebar-divider: rgba(116, 116, 110, 0.24);
+  --sidebar-hover: rgba(236, 236, 232, 0.66);
+  --sidebar-active: rgba(223, 223, 218, 0.72);
+  --sidebar-field: rgba(255, 255, 255, 0.56);
+  -webkit-backdrop-filter: saturate(125%);
+  backdrop-filter: saturate(125%);
+}
+
+.is-macos .app.is-dark .sidebar {
+  --sidebar-background: rgba(24, 24, 23, 0.64);
+  --sidebar-divider: rgba(214, 214, 207, 0.16);
+  --sidebar-hover: rgba(48, 48, 46, 0.64);
+  --sidebar-active: rgba(58, 58, 55, 0.7);
+  --sidebar-field: rgba(35, 35, 34, 0.58);
 }
 
 .sidebar-titlebar {
@@ -1652,6 +1684,14 @@ button:focus:not(:focus-visible) {
   background: rgba(255, 255, 255, 0.58);
   -webkit-backdrop-filter: blur(7px);
   backdrop-filter: blur(7px);
+}
+
+.is-macos .grid-edge-blur {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.is-macos .app.is-dark .grid-edge-blur {
+  background: rgba(17, 17, 17, 0.36);
 }
 
 .grid-edge-blur.is-top {

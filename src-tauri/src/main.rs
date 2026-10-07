@@ -6,6 +6,39 @@ mod menu;
 mod scanner;
 mod watcher;
 
+#[cfg(target_os = "macos")]
+fn apply_macos_glass(window: tauri::WebviewWindow) {
+    let glass_window = window.clone();
+    if let Err(error) = window.with_webview(move |webview| {
+        use objc2_web_kit::WKWebView;
+        use window_vibrancy::{
+            apply_liquid_glass, apply_vibrancy, LiquidGlassOptions, NSGlassEffectViewStyle,
+            NSVisualEffectMaterial,
+        };
+
+        let webview: &WKWebView = unsafe { &*webview.inner().cast() };
+        let options = LiquidGlassOptions::new(NSGlassEffectViewStyle::Clear)
+            .radius(18.0)
+            .opaque(false)
+            .interactive(true)
+            .content_view(webview);
+
+        if let Err(glass_error) = apply_liquid_glass(&glass_window, options) {
+            eprintln!("Liquid Glass unavailable, using macOS vibrancy: {glass_error}");
+            if let Err(vibrancy_error) = apply_vibrancy(
+                &glass_window,
+                NSVisualEffectMaterial::UnderWindowBackground,
+                None,
+                None,
+            ) {
+                eprintln!("Could not apply macOS vibrancy: {vibrancy_error}");
+            }
+        }
+    }) {
+        eprintln!("Could not access the Koi webview for Liquid Glass: {error}");
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
@@ -37,6 +70,13 @@ fn main() {
             commands::mcp_regenerate_token
         ])
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    apply_macos_glass(window);
+                }
+            }
             // The extension can still explain that Downloads access is needed
             // while macOS is presenting the first-run folder permission sheet.
             capture_bridge::start(app.handle().clone());

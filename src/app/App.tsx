@@ -22,7 +22,12 @@ import { TagEditor } from "../components/TagEditor";
 import { Sidebar } from "../components/Sidebar";
 import { Toaster, toast } from "sonner";
 import { mediaSrc } from "../lib/media";
-import { checkForKoiUpdate, installKoiUpdate, type KoiUpdate } from "../lib/updater";
+import {
+  checkForKoiUpdate,
+  installKoiUpdate,
+  isUpdaterFeedUnavailable,
+  type KoiUpdate,
+} from "../lib/updater";
 import { formatColor, type ColorFormat } from "../lib/colors";
 import { areSoundsEnabled, getSoundVolume, playSound, setSoundVolume, setSoundsEnabled } from "../lib/sound";
 import type { MediaItem } from "../lib/types";
@@ -417,8 +422,24 @@ export function App() {
         action: { label: "Install", onClick: () => void installAvailableUpdate(update) },
       });
     } catch (error) {
+      if (isUpdaterFeedUnavailable(error)) {
+        setUpdateStatus("Unavailable");
+        if (manual) {
+          toast("Automatic updates aren’t available yet", {
+            id: "koi-update-unavailable",
+            description: "Download the latest Koi installer from GitHub Releases.",
+          });
+        }
+        return;
+      }
       setUpdateStatus("Try again");
-      if (manual) showToast(`Couldn’t check for updates · ${String(error)}`, "error", 5200);
+      if (manual) {
+        toast.error(`Couldn’t check for updates · ${String(error)}`, {
+          id: "koi-update-error",
+          duration: Infinity,
+          closeButton: true,
+        });
+      }
     } finally {
       updateCheckInFlight.current = false;
     }

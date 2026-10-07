@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { updaterProgress } from "../src/lib/updater";
+import { isUpdaterFeedUnavailable, updaterProgress } from "../src/lib/updater";
 
 describe("updater progress", () => {
   it("calculates bounded download progress", () => {
@@ -14,5 +14,10 @@ describe("updater progress", () => {
 
   it("moves to installing when the download finishes", () => {
     expect(updaterProgress({ event: "Finished" }, 200, 200).value).toEqual({ phase: "installing", percent: 100 });
+  });
+
+  it("recognises an unavailable GitHub updater feed", () => {
+    expect(isUpdaterFeedUnavailable("Could not fetch a valid release JSON from the remote")).toBe(true);
+    expect(isUpdaterFeedUnavailable("network timed out")).toBe(false);
   });
 });
